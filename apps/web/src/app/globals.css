@@ -702,3 +702,56 @@ select {
     transition: none !important;
   }
 }
+.badge.crit {
+  background: rgba(255, 107, 122, 0.2);
+  color: var(--coral);
+}
+.findings {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.finding {
+  border-top: 1px solid var(--line);
+  padding: 0.8rem 0;
+}
+.finding:first-child {
+  border-top: 0;
+}
+.evidence {
+  margin: 0.3rem 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.evidence code,
+.finding code {
+  background: #120e2b;
+  padding: 0.05rem 0.3rem;
+  border-radius: 6px;
+  word-break: break-word;
+}
+.checks {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.checks li {
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--line);
+}
+.checks li:first-child {
+  border-top: 0;
+}
+.subcard {
+  background: #181334;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  padding: 0.7rem 0.9rem;
+  margin: 0.8rem 0;
+}
+details > summary {
+  cursor: pointer;
+  font-weight: 800;
+  margin: 0.5rem 0;
+}

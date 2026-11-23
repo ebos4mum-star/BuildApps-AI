@@ -12,7 +12,9 @@
   "dependencies": {
     "@buildapps/api-client": "workspace:*",
     "@buildapps/core": "workspace:*",
+    "@buildapps/github": "workspace:*",
     "@buildapps/lessons": "workspace:*",
+    "@buildapps/scanner": "workspace:*",
     "@buildapps/server": "workspace:*",
     "@supabase/supabase-js": "^2.45.0",
     "next": "^15.0.0",

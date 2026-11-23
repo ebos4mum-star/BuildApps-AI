@@ -4,6 +4,8 @@ export default {
     "@buildapps/core",
     "@buildapps/lessons",
     "@buildapps/server",
+    "@buildapps/github",
+    "@buildapps/scanner",
     "@buildapps/api-client",
   ],
   poweredByHeader: false,

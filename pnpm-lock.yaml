@@ -87,9 +87,15 @@ importers:
       '@buildapps/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@buildapps/github':
+        specifier: workspace:*
+        version: link:../../packages/github
       '@buildapps/lessons':
         specifier: workspace:*
         version: link:../../packages/lessons
+      '@buildapps/scanner':
+        specifier: workspace:*
+        version: link:../../packages/scanner
       '@buildapps/server':
         specifier: workspace:*
         version: link:../../packages/server

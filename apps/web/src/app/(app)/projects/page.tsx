@@ -1,9 +1,33 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { calculateProgress } from "@buildapps/core";
 import { JOURNEY_INFO } from "@/components/Journeys";
 import { api, type Project } from "@/lib/api-types";
+
+function GithubBanner() {
+  const q = useSearchParams();
+  const r = q.get("github");
+  if (!r) return null;
+  if (r === "connected")
+    return (
+      <p role="status" className="badge ok" style={{ whiteSpace: "normal" }}>
+        GitHub connected (read-only). Open a project to choose a repository.
+      </p>
+    );
+  if (r === "pending")
+    return (
+      <p role="status" className="badge warn" style={{ whiteSpace: "normal" }}>
+        Your GitHub organisation owner needs to approve the app. Try again afterwards.
+      </p>
+    );
+  return (
+    <div className="err" role="alert">
+      {q.get("reason") ?? "Could not connect GitHub."}
+    </div>
+  );
+}
 
 export default function Projects() {
   const [projects, setProjects] = useState<Project[] | null>(null);
@@ -28,6 +52,9 @@ export default function Projects() {
     );
   return (
     <>
+      <Suspense fallback={null}>
+        <GithubBanner />
+      </Suspense>
       <div className="stats" style={{ justifyContent: "space-between", alignItems: "center" }}>
         <h1 style={{ margin: 0 }}>Your projects</h1>
         <Link href="/projects/new" className="btn small">

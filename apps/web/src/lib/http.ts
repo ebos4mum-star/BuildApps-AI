@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { AttemptError, ProjectError } from "@buildapps/server";
+import { AttemptError, ProjectError, WorkspaceError } from "@buildapps/server";
 import { verifyToken } from "./backend";
 
 const STATUS: Record<string, number> = {
@@ -10,6 +10,12 @@ const STATUS: Record<string, number> = {
   not_found: 404,
   forbidden_transition: 409,
   invalid: 400,
+  forbidden: 403,
+  not_connected: 409,
+  rate_limited: 429,
+  conflict: 409,
+  github_error: 502,
+  unavailable: 503,
 };
 
 export function json(body: unknown, status = 200) {
@@ -39,7 +45,7 @@ export async function handle(
     if (rateLimited(userId, 240)) return fail(429, "rate_limited", "Slow down a little");
     return await fn(userId);
   } catch (e) {
-    if (e instanceof AttemptError || e instanceof ProjectError)
+    if (e instanceof AttemptError || e instanceof ProjectError || e instanceof WorkspaceError)
       return fail(STATUS[e.code] ?? 400, e.code, e.message);
     if (e instanceof ZodError) return fail(400, "invalid", "Invalid request");
     console.error("api error", e);

@@ -1,40 +1,44 @@
 "use client";
-import { use, useEffect, useState } from "react";
-import { calculateProgress, RESCUE_STAGES } from "@buildapps/core";
+import { use, useCallback, useEffect, useState } from "react";
 import { JOURNEY_INFO } from "@/components/Journeys";
-import { api, type Project } from "@/lib/api-types";
+import { FindingsPanel } from "@/components/workspace/FindingsPanel";
+import { GithubCard } from "@/components/workspace/GithubCard";
+import { HelpPanel } from "@/components/workspace/HelpPanel";
+import { VerificationPanel } from "@/components/workspace/VerificationPanel";
+import { api, type WorkspaceView } from "@/lib/api-types";
 
 const ROADMAP = [
-  ["Project Rescue Scanner", "Read-only GitHub inspection with evidence-based findings."],
-  ["Build Verification Lab", "Automated, sandboxed checks that mark milestones verified."],
-  ["Publishing Center", "App Store and Google Play submission help ($25 per app / year)."],
+  [
+    "Publishing Center",
+    "App Store and Google Play submission help ($25 per app / year). Not available yet.",
+  ],
 ];
 
 export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [p, setP] = useState<Project | null>(null);
+  const [ws, setWs] = useState<WorkspaceView | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [help, setHelp] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    api
-      .getProject(id)
-      .then(setP)
-      .catch((e) => setErr(e.message));
+  const reload = useCallback(async () => {
+    setWs(await api.workspace(id));
   }, [id]);
+  useEffect(() => {
+    reload().catch((e) => setErr(e.message));
+  }, [reload]);
 
-  async function act(fn: () => Promise<Project>) {
+  async function act(fn: () => Promise<unknown>) {
     setBusy(true);
     setErr(null);
     try {
-      setP(await fn());
+      await fn();
+      await reload();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed");
     } finally {
       setBusy(false);
     }
   }
-  if (!p)
+  if (!ws)
     return err ? (
       <div className="err" role="alert">
         {err}
@@ -44,13 +48,13 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         Loading...
       </p>
     );
-  const pr = calculateProgress(p.milestones);
+  const p = ws.project;
+  const pr = ws.progress;
   const completionLabel = {
     incomplete: "In progress",
     user_reported: "Complete (self-reported)",
     verified: "Complete (verified)",
   }[pr.completion];
-  const stageIdx = p.recovery ? RESCUE_STAGES.indexOf(p.recovery.stage) : -1;
 
   return (
     <>
@@ -59,11 +63,6 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       </span>{" "}
       <span className="badge ok">{p.state.replace("_", " ")}</span>
       <h1 style={{ marginTop: ".4rem" }}>{p.name}</h1>
-      {p.repo && (
-        <p className="muted">
-          Repository: {p.repo.owner}/{p.repo.name} (read-only)
-        </p>
-      )}
       {err && (
         <div className="err" role="alert">
           {err}
@@ -90,73 +89,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           </p>
         </div>
       </div>
-      {p.recovery && (
-        <div className="card">
-          <h2>Recovery plan</h2>
-          <div className="steps" role="list" aria-label="Recovery stages">
-            {RESCUE_STAGES.map((s, i) => (
-              <span
-                key={s}
-                role="listitem"
-                className={`s ${i < stageIdx ? "past" : i === stageIdx ? "on" : ""}`}
-              >
-                {i + 1}. {s}
-              </span>
-            ))}
-          </div>
-          {stageIdx < RESCUE_STAGES.length - 1 && (
-            <button
-              className="btn small"
-              disabled={busy}
-              onClick={() => act(() => api.advanceRecovery(p.id))}
-            >
-              Next stage
-            </button>
-          )}
-          <div style={{ marginTop: "1rem" }}>
-            {p.recovery.humanHelpRequested ? (
-              <span className="badge ok">
-                Expert help requested - we&apos;ll match you manually
-              </span>
-            ) : help === null ? (
-              <button className="btn secondary small" onClick={() => setHelp("")}>
-                Ask a vetted developer for help
-              </button>
-            ) : (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  act(async () => {
-                    const r = await api.requestHumanHelp(p.id, help);
-                    setHelp(null);
-                    return r;
-                  });
-                }}
-              >
-                <label className="field" htmlFor="help">
-                  What do you need help with?
-                </label>
-                <textarea
-                  id="help"
-                  required
-                  minLength={10}
-                  maxLength={2000}
-                  rows={3}
-                  value={help}
-                  onChange={(e) => setHelp(e.target.value)}
-                />
-                <p className="muted">
-                  Your project is only shared with a matched expert after you approve a scoped
-                  handoff.
-                </p>
-                <button className="btn small" disabled={busy}>
-                  Send request
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
+      <GithubCard ws={ws} reload={reload} />
       <div className="card">
         <h2>Milestones</h2>
         {p.milestones.map((m) => (
@@ -164,6 +97,20 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <span aria-hidden="true">{m.status === "done" ? "✅" : "⬜"}</span>
             <span className="t">
               {m.title} {!m.required && <span className="badge">optional</span>}
+              {m.completion?.evidenceRef && (
+                <div className="muted" style={{ fontWeight: 400, fontSize: ".8rem" }}>
+                  Evidence:{" "}
+                  {m.completion.evidenceRef.startsWith("scan:")
+                    ? "repository scan"
+                    : "verification run"}{" "}
+                  (
+                  {m.completion.evidenceRef.slice(
+                    m.completion.evidenceRef.indexOf(":") + 1,
+                    m.completion.evidenceRef.indexOf(":") + 9,
+                  )}
+                  )
+                </div>
+              )}
             </span>
             {m.completion?.source === "verified" && (
               <span className="badge verified">Verified</span>
@@ -192,6 +139,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           </button>
         )}
       </div>
+      <FindingsPanel ws={ws} reload={reload} />
+      <VerificationPanel ws={ws} />
+      <HelpPanel ws={ws} reload={reload} />
       <div className="stats">
         {p.state === "active" && (
           <>

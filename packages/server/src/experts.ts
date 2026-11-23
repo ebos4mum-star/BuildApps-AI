@@ -443,3 +443,13 @@ export async function expertWorkspace(
     out.verification = await d.stores.scans.latestVerification(r.projectId);
   return out;
 }
+
+/** What an assigned expert may see BEFORE (or without) a handoff: the request, job milestones and handoff status only. */
+export async function expertGetRequest(d: Deps, userId: string, requestId: string) {
+  const { r } = await assignedRequest(d, userId, requestId);
+  const [jobs, ho] = await Promise.all([
+    d.stores.rescue.listJobMilestones(r.id),
+    d.stores.rescue.activeHandoff(r.id),
+  ]);
+  return { request: r, jobs, handoff: ho && new Date(ho.expiresAt) > nowOf(d) ? ho : null };
+}
