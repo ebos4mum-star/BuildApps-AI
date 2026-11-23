@@ -21,4 +21,4 @@ fi
 
 run_sql "$URL" 00_stub_auth.sql
 for f in ../migrations/*.sql; do run_sql "$URL" "$f"; done
-psql -v ON_ERROR_STOP=1 -q "$URL" -f rls_test.sql
+psql -v ON_ERROR_STOP=1 -q "$URL" -f helpers.sql -f rls_test.sql -f batch2_test.sql -f done.sql

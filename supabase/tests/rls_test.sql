@@ -1,27 +1,3 @@
-\set ON_ERROR_STOP on
-\o /dev/null
--- helpers
-create function pg_temp.act_as(u uuid) returns void language plpgsql as $$
-begin
-  perform set_config('request.jwt.claim.sub', u::text, false);
-  execute 'set role authenticated';
-end $$;
-create function pg_temp.expect_fail(sql text, label text) returns void language plpgsql as $$
-begin
-  begin
-    execute sql;
-  exception when others then
-    return; -- denied, as intended
-  end;
-  raise exception 'EXPECTED FAILURE BUT SUCCEEDED: %', label;
-end $$;
-create function pg_temp.expect_rows(sql text, n int, label text) returns void language plpgsql as $$
-declare c int;
-begin
-  execute 'select count(*) from (' || sql || ') q' into c;
-  if c <> n then raise exception 'ROW COUNT MISMATCH for %: expected %, got %', label, n, c; end if;
-end $$;
-
 insert into auth.users (id, raw_user_meta_data) values
   ('aaaaaaaa-0000-0000-0000-000000000001', '{"display_name":"Alice"}'),
   ('bbbbbbbb-0000-0000-0000-000000000002', null);
@@ -124,5 +100,4 @@ do $$ begin
 end $$;
 drop table public.zz_future_table;
 
-\o
-\echo ALL DB TESTS PASSED
+

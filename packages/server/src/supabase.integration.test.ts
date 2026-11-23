@@ -25,6 +25,11 @@ const {
 } = process.env;
 const enabled = Boolean(URL && ANON && SERVICE);
 
+// In CI the job sets REQUIRE_SUPABASE_INTEGRATION=1 so a missing env can never turn into a silent skip.
+if (process.env.REQUIRE_SUPABASE_INTEGRATION === "1" && !enabled) {
+  throw new Error("Supabase integration tests are required but SUPABASE_* env vars are missing");
+}
+
 describe.skipIf(!enabled)("real Supabase integration", () => {
   let admin: SupabaseClient;
   let stores: Stores;

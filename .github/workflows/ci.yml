@@ -53,7 +53,7 @@ jobs:
         run: |
           eval "$(supabase status -o env | sed 's/^/export /')"
           export SUPABASE_URL="$API_URL" SUPABASE_ANON_KEY="$ANON_KEY" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
-          pnpm --filter @buildapps/server test:integration
+          REQUIRE_SUPABASE_INTEGRATION=1 pnpm --filter @buildapps/server test:integration
   secret-scan:
     runs-on: ubuntu-latest
     steps:

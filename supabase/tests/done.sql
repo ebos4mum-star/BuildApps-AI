@@ -1,0 +1,2 @@
+\o
+\echo ALL DB TESTS PASSED
