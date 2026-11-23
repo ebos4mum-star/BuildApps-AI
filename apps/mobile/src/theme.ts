@@ -1,0 +1,15 @@
+export const c = {
+  bg: "#130f2a",
+  surface: "#241e52",
+  surface2: "#2e2765",
+  line: "#3d3580",
+  text: "#f7f5ff",
+  muted: "#b9b3e6",
+  mint: "#19d3a2",
+  mintD: "#0e9f78",
+  coral: "#ff6b7a",
+  sun: "#ffc84a",
+  sky: "#4cc9f0",
+  violet: "#9b7bff",
+  ink: "#08241c",
+};

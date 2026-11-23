@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "BuildApps AI",
+    "slug": "buildapps-ai",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "buildapps",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#130f2a",
+    "ios": { "supportsTablet": true, "bundleIdentifier": "com.buildapps.mobile" },
+    "android": { "package": "com.buildapps.mobile" }
+  }
+}
