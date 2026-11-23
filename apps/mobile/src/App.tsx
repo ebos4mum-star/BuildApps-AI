@@ -4,7 +4,8 @@ import { SafeAreaView, Text, View } from "react-native";
 import { LearnScreen } from "./screens/Learn";
 import { LessonScreen } from "./screens/Lesson";
 import { LoginScreen } from "./screens/Login";
-import { NewProject, ProjectDetail, ProjectsList } from "./screens/Projects";
+import { NewProject, ProjectsList } from "./screens/Projects";
+import { WorkspaceScreen } from "./screens/Workspace";
 import { Button } from "./components/ui";
 import { supabase } from "./lib/session";
 import { c } from "./theme";
@@ -91,7 +92,7 @@ export default function App() {
             {screen.name === "new" && (
               <NewProject onCreated={(id) => setScreen({ name: "project", id })} />
             )}
-            {screen.name === "project" && <ProjectDetail id={screen.id} />}
+            {screen.name === "project" && <WorkspaceScreen id={screen.id} />}
           </View>
         </>
       )}
