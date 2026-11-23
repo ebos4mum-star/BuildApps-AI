@@ -52,6 +52,8 @@ export interface ProjectStore {
   save(project: Project): Promise<void>;
   /** Human Developer Rescue intake: queued for manual matching by the team. */
   createServiceRequest(ownerId: string, projectId: string, summary: string): Promise<void>;
+  /** True while a help request for this project is submitted, matched, in progress or delivered. */
+  hasOpenServiceRequest(ownerId: string, projectId: string): Promise<boolean>;
   /** GitHub App installation row (not the GitHub id) this project is linked to, if any. */
   getGithubLink(ownerId: string, projectId: string): Promise<{ installationRowId: string | null }>;
   /** Links a project to one repository inside a connected installation. */

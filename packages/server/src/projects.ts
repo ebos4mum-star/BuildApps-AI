@@ -116,17 +116,15 @@ export async function askForHumanHelp(
   const text = summary.trim();
   if (text.length < 10 || text.length > 2000)
     throw new ProjectError("invalid", "Describe what you need help with (10-2000 characters)");
-  let next: Project;
-  try {
-    next = requestHumanHelp(p, now);
-  } catch (e) {
-    throw new ProjectError("invalid", e instanceof Error ? e.message : "Invalid");
-  }
-  // Only the first request creates a queue entry; repeats are idempotent.
-  if (!p.recovery?.humanHelpRequested) {
-    await store.createServiceRequest(ownerId, id, text);
-    await store.save(next);
-  }
+  if (p.state === "archived")
+    throw new ProjectError("invalid", "Restore this project before asking for help");
+  // One open request per project: repeats are idempotent. Any journey may ask; rescue projects also
+  // record it in their recovery workflow.
+  if (await store.hasOpenServiceRequest(ownerId, id)) return p;
+  await store.createServiceRequest(ownerId, id, text);
+  if (!p.recovery) return p;
+  const next = requestHumanHelp(p, now);
+  await store.save(next);
   return next;
 }
 

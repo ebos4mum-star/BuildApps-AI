@@ -2,6 +2,8 @@ import { calculateProgress, INITIAL_STREAK, type Project, type RepoRef } from "@
 import type { InstallationInfo } from "@buildapps/github/types";
 import { mergeFindings } from "./merge-findings";
 import type {
+  EventRole,
+  RequestEventRow,
   ExpertRow,
   ExpertStatus,
   FindingRow,
@@ -53,6 +55,7 @@ export class MemoryDb {
   requests = new Map<string, ServiceRequestRow>();
   handoffs = new Map<string, HandoffRow>();
   jobs = new Map<string, JobMilestoneRow>();
+  events: RequestEventRow[] = [];
 }
 
 /** In-memory stores with the same integrity semantics as the SQL (idempotent keys, versioning). */
@@ -149,6 +152,15 @@ export class MemoryProjectStore implements ProjectStore {
       summary: r.summary,
     }));
   }
+  async hasOpenServiceRequest(ownerId: string, projectId: string) {
+    return [...this.db.requests.values()].some(
+      (r) =>
+        r.requesterId === ownerId &&
+        r.projectId === projectId &&
+        ["submitted", "matched", "in_progress", "delivered"].includes(r.status),
+    );
+  }
+
   async createServiceRequest(ownerId: string, projectId: string, summary: string) {
     const id = uuid();
     this.db.requests.set(id, {
@@ -161,6 +173,15 @@ export class MemoryProjectStore implements ProjectStore {
       matchedAt: null,
       completedAt: null,
       completionEvidence: null,
+      createdAt: new Date().toISOString(),
+    });
+    this.db.events.push({
+      id: String(this.db.events.length + 1),
+      serviceRequestId: id,
+      actorId: ownerId,
+      actorRole: "owner",
+      action: "request_created",
+      detail: {},
       createdAt: new Date().toISOString(),
     });
   }
@@ -368,6 +389,27 @@ export class MemoryRescueStore implements RescueStore {
   constructor(private readonly db: MemoryDb = new MemoryDb()) {}
   async isAdmin(userId: string) {
     return this.db.admins.has(userId);
+  }
+  async addEvent(
+    requestId: string,
+    actorId: string | null,
+    role: EventRole,
+    action: string,
+    detail: Record<string, unknown>,
+    now: Date,
+  ) {
+    this.db.events.push({
+      id: String(this.db.events.length + 1),
+      serviceRequestId: requestId,
+      actorId,
+      actorRole: role,
+      action,
+      detail,
+      createdAt: now.toISOString(),
+    });
+  }
+  async listEvents(requestId: string) {
+    return this.db.events.filter((e) => e.serviceRequestId === requestId).map(clone);
   }
   async upsertExpertApplication(
     userId: string,

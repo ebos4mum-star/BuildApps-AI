@@ -152,3 +152,25 @@ select pg_temp.act_as('e0000000-0000-0000-0000-00000000000e');
 select pg_temp.expect_rows($$select 1 from public.project_findings$$, 0, 'pending expert sees nothing');
 select pg_temp.expect_rows($$select 1 from public.expert_profiles$$, 1, 'expert sees own profile only');
 reset role;
+
+-- ===== request_events: append-only, visible to requester + assigned expert only =====
+-- (state from the expert block above is reset; re-seed an approved expert + handoff-free request view)
+reset role; set role service_role;
+update public.expert_profiles set status = 'approved' where id = 'ee000000-0000-0000-0000-000000000001';
+insert into public.request_events (service_request_id, actor_id, actor_role, action, detail) values
+  ('aa000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-00000000000c', 'owner', 'request_created', '{}'),
+  ('aa000000-0000-0000-0000-000000000001', null, 'system', 'matched', '{"expert":"Dana"}');
+select pg_temp.expect_fail($$update public.request_events set action = 'tampered'$$, 'events are immutable even for the server');
+select pg_temp.expect_fail($$insert into public.request_events (service_request_id, actor_role, action) values ('aa000000-0000-0000-0000-000000000001', 'ghost', 'x')$$, 'invalid actor role');
+reset role;
+select pg_temp.act_as('c0000000-0000-0000-0000-00000000000c');
+select pg_temp.expect_rows($$select 1 from public.request_events$$, 2, 'requester sees the job activity');
+select pg_temp.expect_fail($$insert into public.request_events (service_request_id, actor_role, action) values ('aa000000-0000-0000-0000-000000000001', 'owner', 'forged')$$, 'client cannot write events');
+select pg_temp.expect_no_effect($$update public.request_events set action = 'x'$$, 'client cannot edit events');
+reset role;
+select pg_temp.act_as('d0000000-0000-0000-0000-00000000000d');
+select pg_temp.expect_rows($$select 1 from public.request_events$$, 2, 'assigned expert sees the job activity');
+reset role;
+select pg_temp.act_as('f0000000-0000-0000-0000-00000000000f');
+select pg_temp.expect_rows($$select 1 from public.request_events$$, 0, 'strangers see nothing');
+reset role;

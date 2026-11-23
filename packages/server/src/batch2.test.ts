@@ -646,3 +646,112 @@ describe("Human Developer Rescue", () => {
     expect(await code(() => getMyRequest(c.deps, "mallory", req.id))).toBe("not_found");
   });
 });
+
+describe("help requests from any project + job activity trail", () => {
+  it("any journey can ask for help; only one request is open at a time; archived projects cannot", async () => {
+    const c = setup();
+    const p = await createUserProject(c.stores.projects, "alice", {
+      journey: "start",
+      name: "Habit app",
+      idea: "A habit tracker for students",
+      platform: "web",
+    });
+    await changeProjectState(c.stores.projects, "alice", p.id, "active");
+    await askForHumanHelp(
+      c.stores.projects,
+      "alice",
+      p.id,
+      "Re: finding - env file committed. Please help",
+    );
+    await askForHumanHelp(
+      c.stores.projects,
+      "alice",
+      p.id,
+      "Asking again should not duplicate the request",
+    );
+    expect(await c.stores.rescue.listRequestsForRequester("alice")).toHaveLength(1);
+    const [req] = await c.stores.rescue.listRequestsForRequester("alice");
+    await cancelRequest(c.deps, "alice", req!.id);
+    await askForHumanHelp(
+      c.stores.projects,
+      "alice",
+      p.id,
+      "New attempt after cancelling the first request",
+    );
+    expect(
+      (await c.stores.rescue.listRequestsForRequester("alice")).map((r) => r.status).sort(),
+    ).toEqual(["cancelled", "submitted"]);
+    await changeProjectState(c.stores.projects, "alice", p.id, "archived");
+    await expect(
+      askForHumanHelp(c.stores.projects, "alice", p.id, "Archived projects cannot ask for help"),
+    ).rejects.toMatchObject({ code: "invalid" });
+  });
+
+  it("records every step of a job in order, with who did it", async () => {
+    const c = setup();
+    c.stores.db.admins.add("admin");
+    const { p } = await rescueProject(c, "alice", "stuck-app");
+    await runScan(c.deps, "alice", p.id);
+    await askForHumanHelp(c.stores.projects, "alice", p.id, "Please help me fix this broken build");
+    const req = (await c.stores.rescue.listAllRequests())[0]!;
+    const e = await applyAsExpert(c.deps, "dana", { displayName: "Dana" });
+    await adminReviewExpert(c.deps, "admin", e.id, { decision: "approved" });
+    await adminMatch(c.deps, "admin", req.id, e.id);
+    await grantHandoff(c.deps, "alice", req.id, { scopes: ["view_findings"] });
+    await expertAccept(c.deps, "dana", req.id);
+    const j = await expertAddJobMilestone(c.deps, "dana", req.id, { title: "Fix build" });
+    await expertSubmitJobMilestone(c.deps, "dana", req.id, j.id, {
+      note: "first attempt at the fix",
+    });
+    await expertMarkDelivered(c.deps, "dana", req.id);
+    await decideJobMilestone(c.deps, "alice", req.id, j.id, {
+      decision: "reject",
+      note: "still failing in CI",
+    });
+    await expertSubmitJobMilestone(c.deps, "dana", req.id, j.id, {
+      note: "second attempt, CI green",
+    });
+    await expertMarkDelivered(c.deps, "dana", req.id);
+    await decideJobMilestone(c.deps, "alice", req.id, j.id, { decision: "accept" });
+    await completeRequest(c.deps, "alice", req.id);
+
+    const events = (await getMyRequest(c.deps, "alice", req.id)).events;
+    expect(events.map((x) => `${x.actorRole}:${x.action}`)).toEqual([
+      "owner:request_created",
+      "admin:matched",
+      "owner:handoff_granted",
+      "expert:accepted",
+      "expert:milestone_added",
+      "expert:milestone_submitted",
+      "expert:delivered",
+      "owner:revision_requested",
+      "expert:milestone_submitted",
+      "expert:delivered",
+      "owner:milestone_accepted",
+      "system:handoff_revoked",
+      "owner:completed",
+    ]);
+    expect(events.find((x) => x.action === "revision_requested")!.detail).toMatchObject({
+      note: "still failing in CI",
+    });
+    expect(events.find((x) => x.action === "handoff_granted")!.detail.scopes).toEqual([
+      "view_findings",
+    ]);
+  });
+
+  it("suspending an expert is recorded as a system revocation on their open jobs", async () => {
+    const c = setup();
+    c.stores.db.admins.add("admin");
+    const { p } = await rescueProject(c, "alice", "stuck-app");
+    await askForHumanHelp(c.stores.projects, "alice", p.id, "Please help me fix this broken build");
+    const req = (await c.stores.rescue.listAllRequests())[0]!;
+    const e = await applyAsExpert(c.deps, "dana", { displayName: "Dana" });
+    await adminReviewExpert(c.deps, "admin", e.id, { decision: "approved" });
+    await adminMatch(c.deps, "admin", req.id, e.id);
+    await grantHandoff(c.deps, "alice", req.id, { scopes: ["view_findings"] });
+    await adminReviewExpert(c.deps, "admin", e.id, { decision: "suspended", note: "complaint" });
+    const last = (await c.stores.rescue.listEvents(req.id)).at(-1)!;
+    expect(last).toMatchObject({ actorRole: "system", action: "handoff_revoked" });
+    expect(last.detail.reason).toMatch(/no longer approved/);
+  });
+});

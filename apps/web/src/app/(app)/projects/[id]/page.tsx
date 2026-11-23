@@ -19,6 +19,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [ws, setWs] = useState<WorkspaceView | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState<string | null>(null);
   const reload = useCallback(async () => {
     setWs(await api.workspace(id));
   }, [id]);
@@ -139,9 +140,16 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           </button>
         )}
       </div>
-      <FindingsPanel ws={ws} reload={reload} />
+      <FindingsPanel
+        ws={ws}
+        reload={reload}
+        onAskExpert={(t) => {
+          setDraft(t);
+          document.getElementById("expert-help")?.scrollIntoView({ behavior: "smooth" });
+        }}
+      />
       <VerificationPanel ws={ws} />
-      <HelpPanel ws={ws} reload={reload} />
+      <HelpPanel ws={ws} reload={reload} draft={draft} onDraftUsed={() => setDraft(null)} />
       <div className="stats">
         {p.state === "active" && (
           <>

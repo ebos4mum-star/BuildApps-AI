@@ -205,7 +205,27 @@ export interface JobMilestoneRow {
   createdAt: string;
 }
 
+export type EventRole = "owner" | "expert" | "admin" | "system";
+export interface RequestEventRow {
+  id: string;
+  serviceRequestId: string;
+  actorId: string | null;
+  actorRole: EventRole;
+  action: string;
+  detail: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface RescueStore {
+  addEvent(
+    requestId: string,
+    actorId: string | null,
+    role: EventRole,
+    action: string,
+    detail: Record<string, unknown>,
+    now: Date,
+  ): Promise<void>;
+  listEvents(requestId: string): Promise<RequestEventRow[]>;
   isAdmin(userId: string): Promise<boolean>;
   upsertExpertApplication(
     userId: string,

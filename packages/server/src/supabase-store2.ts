@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { InstallationInfo } from "@buildapps/github/types";
 import type {
+  EventRole,
+  RequestEventRow,
   ExpertRow,
   ExpertStatus,
   FindingRow,
@@ -342,6 +344,45 @@ export class SupabaseScanStore implements ScanStore {
 
 export class SupabaseRescueStore implements RescueStore {
   constructor(private readonly db: SupabaseClient) {}
+  async addEvent(
+    requestId: string,
+    actorId: string | null,
+    role: EventRole,
+    action: string,
+    detail: Record<string, unknown>,
+    now: Date,
+  ) {
+    const { error } = await this.db.from("request_events").insert({
+      service_request_id: requestId,
+      actor_id: actorId,
+      actor_role: role,
+      action,
+      detail,
+      created_at: now.toISOString(),
+    });
+    fail("add event", error);
+  }
+  async listEvents(requestId: string) {
+    const { data, error } = await this.db
+      .from("request_events")
+      .select("*")
+      .eq("service_request_id", requestId)
+      .order("created_at")
+      .order("id");
+    fail("list events", error);
+    return (data ?? []).map(
+      (r: R) =>
+        ({
+          id: String(r.id),
+          serviceRequestId: r.service_request_id,
+          actorId: r.actor_id,
+          actorRole: r.actor_role,
+          action: r.action,
+          detail: r.detail ?? {},
+          createdAt: r.created_at,
+        }) as RequestEventRow,
+    );
+  }
   async isAdmin(userId: string) {
     const { data, error } = await this.db
       .from("admins")

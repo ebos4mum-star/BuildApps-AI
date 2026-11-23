@@ -314,11 +314,32 @@ export class SupabaseProjectStore implements ProjectStore {
     fail("unlink repo", e2);
   }
 
-  async createServiceRequest(ownerId: string, projectId: string, summary: string) {
-    const { error } = await this.db
+  async hasOpenServiceRequest(ownerId: string, projectId: string) {
+    const { count, error } = await this.db
       .from("service_requests")
-      .insert({ project_id: projectId, requester_id: ownerId, summary });
+      .select("id", { count: "exact", head: true })
+      .eq("requester_id", ownerId)
+      .eq("project_id", projectId)
+      .in("status", ["submitted", "matched", "in_progress", "delivered"]);
+    fail("check open requests", error);
+    return (count ?? 0) > 0;
+  }
+
+  async createServiceRequest(ownerId: string, projectId: string, summary: string) {
+    const { data, error } = await this.db
+      .from("service_requests")
+      .insert({ project_id: projectId, requester_id: ownerId, summary })
+      .select("id")
+      .single();
     fail("create service request", error);
+    const ev = await this.db.from("request_events").insert({
+      service_request_id: data.id,
+      actor_id: ownerId,
+      actor_role: "owner",
+      action: "request_created",
+      detail: {},
+    });
+    fail("log request event", ev.error);
   }
 
   async save(p: Project) {

@@ -26,7 +26,18 @@ const STATUS_TEXT: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
-export function HelpPanel({ ws, reload }: { ws: WorkspaceView; reload: () => Promise<void> }) {
+export function HelpPanel({
+  ws,
+  reload,
+  draft,
+  onDraftUsed,
+}: {
+  ws: WorkspaceView;
+  reload: () => Promise<void>;
+  /** Pre-filled request text (e.g. from "Ask an expert about this finding"). */
+  draft?: string | null;
+  onDraftUsed?: () => void;
+}) {
   const p = ws.project;
   const [help, setHelp] = useState<string | null>(null);
   const [view, setView] = useState<RequestView | null>(null);
@@ -36,6 +47,9 @@ export function HelpPanel({ ws, reload }: { ws: WorkspaceView; reload: () => Pro
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const reqId = ws.helpRequest?.id;
+  useEffect(() => {
+    if (draft) setHelp(draft);
+  }, [draft]);
 
   const load = useCallback(async () => {
     if (reqId) setView(await api.myRequest(reqId));
@@ -58,24 +72,25 @@ export function HelpPanel({ ws, reload }: { ws: WorkspaceView; reload: () => Pro
       setBusy(false);
     }
   }
-  if (!p.recovery) return null;
-  const stageIdx = RESCUE_STAGES.indexOf(p.recovery.stage);
+  const stageIdx = p.recovery ? RESCUE_STAGES.indexOf(p.recovery.stage) : -1;
 
   return (
-    <div className="card">
-      <h2>Recovery &amp; expert help</h2>
-      <div className="steps" role="list" aria-label="Recovery stages">
-        {RESCUE_STAGES.map((s, i) => (
-          <span
-            key={s}
-            role="listitem"
-            className={`s ${i < stageIdx ? "past" : i === stageIdx ? "on" : ""}`}
-          >
-            {i + 1}. {s}
-          </span>
-        ))}
-      </div>
-      {stageIdx < RESCUE_STAGES.length - 1 && (
+    <div className="card" id="expert-help">
+      <h2>{p.recovery ? "Recovery & expert help" : "Expert help"}</h2>
+      {p.recovery && (
+        <div className="steps" role="list" aria-label="Recovery stages">
+          {RESCUE_STAGES.map((s, i) => (
+            <span
+              key={s}
+              role="listitem"
+              className={`s ${i < stageIdx ? "past" : i === stageIdx ? "on" : ""}`}
+            >
+              {i + 1}. {s}
+            </span>
+          ))}
+        </div>
+      )}
+      {p.recovery && stageIdx < RESCUE_STAGES.length - 1 && (
         <button
           className="btn small"
           disabled={busy}
@@ -90,7 +105,7 @@ export function HelpPanel({ ws, reload }: { ws: WorkspaceView; reload: () => Pro
         </div>
       )}
 
-      {!view ? (
+      {!view || (help !== null && ["completed", "cancelled"].includes(view.request.status)) ? (
         help === null ? (
           <p>
             <button className="btn secondary small" onClick={() => setHelp("")}>
@@ -104,6 +119,7 @@ export function HelpPanel({ ws, reload }: { ws: WorkspaceView; reload: () => Pro
               void act(async () => {
                 await api.requestHumanHelp(p.id, help);
                 setHelp(null);
+                onDraftUsed?.();
               });
             }}
           >
@@ -339,8 +355,53 @@ export function HelpPanel({ ws, reload }: { ws: WorkspaceView; reload: () => Pro
               verification evidence.
             </p>
           )}
+
+          {view.events.length > 0 && (
+            <details open={view.events.length <= 6}>
+              <summary>Job activity ({view.events.length})</summary>
+              <ol className="timeline" aria-label="Job activity">
+                {view.events.map((e) => (
+                  <li key={e.id}>
+                    <strong>{ACTION_TEXT[e.action] ?? e.action.replace(/_/g, " ")}</strong>{" "}
+                    <span className="muted">
+                      by {e.actorRole} - {new Date(e.createdAt).toLocaleString()}
+                    </span>
+                    {typeof e.detail.milestone === "string" && (
+                      <div className="muted">{e.detail.milestone}</div>
+                    )}
+                    {typeof e.detail.note === "string" && e.detail.note && (
+                      <div className="muted">&ldquo;{e.detail.note}&rdquo;</div>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )}
+          {["completed", "cancelled"].includes(view.request.status) && help === null && (
+            <p>
+              <button className="btn secondary small" onClick={() => setHelp("")}>
+                Ask for more help
+              </button>
+            </p>
+          )}
         </div>
       )}
     </div>
   );
 }
+
+const ACTION_TEXT: Record<string, string> = {
+  request_created: "Help requested",
+  matched: "Matched with an expert",
+  accepted: "Expert accepted the job",
+  declined: "Expert declined the job",
+  handoff_granted: "Project access granted",
+  handoff_revoked: "Project access ended",
+  milestone_added: "Milestone added",
+  milestone_submitted: "Work submitted",
+  revision_requested: "Revision requested",
+  milestone_accepted: "Work accepted",
+  delivered: "Marked delivered",
+  completed: "Job completed",
+  cancelled: "Request cancelled",
+};

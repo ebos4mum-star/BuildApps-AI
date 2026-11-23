@@ -163,8 +163,18 @@ const api = (page, method, path, body) =>
   await alice.screenshot({ path: `${OUT}/b2-02-verification.png`, fullPage: true });
 
   log("# Stage 5: expert vetting, request from the project, manual match");
-  await alice.getByRole("button", { name: "Ask a vetted developer for help" }).click();
-  await alice.fill("#help", "Please fix the committed secrets and the broken build");
+  // ask from a specific finding: the request is pre-filled with that finding
+  await alice
+    .locator("li.finding", {
+      has: alice.getByRole("heading", { name: "Possible hardcoded secret in src/lib/pay.ts" }),
+    })
+    .getByRole("button", { name: "Ask an expert about this" })
+    .click();
+  const prefilled = await alice.locator("#help").inputValue();
+  ok(
+    /Possible hardcoded secret in src\/lib\/pay\.ts/.test(prefilled),
+    "asking about a finding pre-fills the request with that finding",
+  );
   await alice.getByRole("button", { name: "Send request" }).click();
   await alice.getByText(/Waiting for us to match you with a vetted expert/).waitFor();
   ok(true, "owner request is queued from the project workspace");
@@ -261,6 +271,26 @@ const api = (page, method, path, body) =>
     req.request.status === "completed" && req.request.completionEvidence.latestScanId,
     "completion is recorded with scan evidence links",
   );
+  const acts = req.events.map((e) => e.action);
+  ok(
+    [
+      "request_created",
+      "matched",
+      "handoff_granted",
+      "accepted",
+      "revision_requested",
+      "milestone_accepted",
+      "handoff_revoked",
+      "completed",
+    ].every((a) => acts.includes(a)),
+    "job activity trail records every step",
+  );
+  await alice.goto(projectUrl);
+  await alice.getByText(/Job activity \(/).click();
+  ok(
+    /Revision requested/i.test(await alice.locator("body").innerText()),
+    "owner sees the activity timeline in the UI",
+  );
   ok(req.handoff === null, "expert access ended automatically at completion");
   const danaWs = await api(dana, "GET", `/api/expert/requests/${req.request.id}/workspace`);
   ok(danaWs.status === 403, "expert workspace is closed after completion");
@@ -276,6 +306,18 @@ const api = (page, method, path, body) =>
     after.status === 409 && after.json.error.code === "not_connected",
     "scanning after disconnect is refused",
   );
+
+  // help is available from any journey, not just rescue
+  await alice.goto(`${BASE}/projects/new?journey=start`);
+  await alice.fill("#name", "Habit tracker");
+  await alice.fill("#idea", "A habit tracker for students with streaks");
+  await alice.getByRole("button", { name: "Create project" }).click();
+  await alice.waitForURL(/\/projects\/[0-9a-f-]{36}/);
+  await alice.getByRole("button", { name: "Ask a vetted developer for help" }).click();
+  await alice.fill("#help", "I want a review of my app before I launch it");
+  await alice.getByRole("button", { name: "Send request" }).click();
+  await alice.getByText(/Waiting for us to match you with a vetted expert/).waitFor();
+  ok(true, "a Start-journey project can request expert help too");
 
   for (const [n, p] of [
     ["alice", alice],

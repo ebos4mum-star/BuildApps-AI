@@ -3,6 +3,8 @@ import { nowOf, type Deps } from "./deps";
 import { WorkspaceError } from "./errors";
 import {
   HANDOFF_SCOPES,
+  type EventRole,
+  type RequestEventRow,
   type ExpertRow,
   type ExpertStatus,
   type FindingRow,
@@ -90,15 +92,19 @@ export async function adminReviewExpert(
   return updated;
 }
 async function revokeForExpert(d: Deps, expertId: string) {
-  for (const r of await d.stores.rescue.listRequestsForExpert(expertId))
-    await d.stores.rescue.revokeHandoffs(r.id, nowOf(d));
+  for (const r of await d.stores.rescue.listRequestsForExpert(expertId)) {
+    if ((await d.stores.rescue.revokeHandoffs(r.id, nowOf(d))) > 0)
+      await log(d, r.id, null, "system", "handoff_revoked", {
+        reason: "expert no longer approved",
+      });
+  }
 }
 export async function adminListRequests(d: Deps, adminId: string, status?: RequestStatus) {
   await requireAdmin(d, adminId);
   return d.stores.rescue.listAllRequests(status);
 }
 /** Manual matching: an administrator assigns an APPROVED expert to a submitted request. */
-export async function adminMatch(
+async function adminMatchImpl(
   d: Deps,
   adminId: string,
   requestId: string,
@@ -147,15 +153,17 @@ export interface RequestView {
   expert: ReturnType<typeof publicExpert> | null;
   jobs: JobMilestoneRow[];
   handoff: HandoffRow | null;
+  events: RequestEventRow[];
 }
 async function view(d: Deps, r: ServiceRequestRow): Promise<RequestView> {
-  const [e, jobs, ho] = await Promise.all([
+  const [e, jobs, ho, events] = await Promise.all([
     r.assignedExpertId ? d.stores.rescue.getExpert(r.assignedExpertId) : null,
     d.stores.rescue.listJobMilestones(r.id),
     d.stores.rescue.activeHandoff(r.id),
+    d.stores.rescue.listEvents(r.id),
   ]);
   const live = ho && new Date(ho.expiresAt) > nowOf(d) ? ho : null;
-  return { request: r, expert: e ? publicExpert(e) : null, jobs, handoff: live };
+  return { request: r, expert: e ? publicExpert(e) : null, jobs, handoff: live, events };
 }
 export async function listMyRequests(d: Deps, userId: string): Promise<RequestView[]> {
   return Promise.all(
@@ -166,7 +174,7 @@ export async function getMyRequest(d: Deps, userId: string, requestId: string) {
   return view(d, await ownRequest(d, userId, requestId));
 }
 
-export async function grantHandoff(
+async function grantHandoffImpl(
   d: Deps,
   userId: string,
   requestId: string,
@@ -205,7 +213,7 @@ export async function grantHandoff(
     );
   }
 }
-export async function revokeHandoff(
+async function revokeHandoffImpl(
   d: Deps,
   userId: string,
   requestId: string,
@@ -214,7 +222,7 @@ export async function revokeHandoff(
   return { revoked: await d.stores.rescue.revokeHandoffs(r.id, nowOf(d)) };
 }
 
-export async function decideJobMilestone(
+async function decideJobMilestoneImpl(
   d: Deps,
   userId: string,
   requestId: string,
@@ -247,7 +255,7 @@ export async function decideJobMilestone(
 }
 
 /** Completion requires the OWNER to accept every job milestone; the evidence links to the latest scan/verification. */
-export async function completeRequest(
+async function completeRequestImpl(
   d: Deps,
   userId: string,
   requestId: string,
@@ -274,7 +282,7 @@ export async function completeRequest(
     },
   });
 }
-export async function cancelRequest(
+async function cancelRequestImpl(
   d: Deps,
   userId: string,
   requestId: string,
@@ -291,7 +299,7 @@ export async function expertListRequests(d: Deps, userId: string): Promise<Servi
   const e = await d.stores.rescue.getExpertByUser(userId);
   return e && e.status === "approved" ? d.stores.rescue.listRequestsForExpert(e.id) : [];
 }
-export async function expertAccept(
+async function expertAcceptImpl(
   d: Deps,
   userId: string,
   requestId: string,
@@ -300,7 +308,7 @@ export async function expertAccept(
   if (r.status !== "matched") throw new WorkspaceError("conflict", `Request is ${r.status}`);
   return d.stores.rescue.updateRequest(r.id, { status: "in_progress" });
 }
-export async function expertDecline(
+async function expertDeclineImpl(
   d: Deps,
   userId: string,
   requestId: string,
@@ -315,7 +323,7 @@ export async function expertDecline(
     matchedAt: null,
   });
 }
-export async function expertAddJobMilestone(
+async function expertAddJobMilestoneImpl(
   d: Deps,
   userId: string,
   requestId: string,
@@ -337,7 +345,7 @@ export async function expertAddJobMilestone(
     nowOf(d),
   );
 }
-export async function expertSubmitJobMilestone(
+async function expertSubmitJobMilestoneImpl(
   d: Deps,
   userId: string,
   requestId: string,
@@ -373,7 +381,7 @@ export async function expertSubmitJobMilestone(
     decisionNote: null,
   });
 }
-export async function expertMarkDelivered(
+async function expertMarkDeliveredImpl(
   d: Deps,
   userId: string,
   requestId: string,
@@ -447,9 +455,127 @@ export async function expertWorkspace(
 /** What an assigned expert may see BEFORE (or without) a handoff: the request, job milestones and handoff status only. */
 export async function expertGetRequest(d: Deps, userId: string, requestId: string) {
   const { r } = await assignedRequest(d, userId, requestId);
-  const [jobs, ho] = await Promise.all([
+  const [jobs, ho, events] = await Promise.all([
     d.stores.rescue.listJobMilestones(r.id),
     d.stores.rescue.activeHandoff(r.id),
+    d.stores.rescue.listEvents(r.id),
   ]);
-  return { request: r, jobs, handoff: ho && new Date(ho.expiresAt) > nowOf(d) ? ho : null };
+  return {
+    request: r,
+    jobs,
+    handoff: ho && new Date(ho.expiresAt) > nowOf(d) ? ho : null,
+    events,
+  };
+}
+
+// ---------- activity trail ----------
+/** Append-only job history (owner, expert, admin and system actions). */
+async function log(
+  d: Deps,
+  requestId: string,
+  actorId: string | null,
+  role: EventRole,
+  action: string,
+  detail: Record<string, unknown> = {},
+) {
+  await d.stores.rescue.addEvent(requestId, actorId, role, action, detail, nowOf(d));
+}
+async function hadHandoff(d: Deps, requestId: string) {
+  return (await d.stores.rescue.activeHandoff(requestId)) !== null;
+}
+
+export async function adminMatch(d: Deps, adminId: string, requestId: string, expertId: string) {
+  const r = await adminMatchImpl(d, adminId, requestId, expertId);
+  const e = await d.stores.rescue.getExpert(expertId);
+  await log(d, requestId, adminId, "admin", "matched", { expert: e?.displayName ?? expertId });
+  return r;
+}
+export async function grantHandoff(d: Deps, userId: string, requestId: string, input: unknown) {
+  const h = await grantHandoffImpl(d, userId, requestId, input);
+  await log(d, requestId, userId, "owner", "handoff_granted", {
+    scopes: h.scopes,
+    expiresAt: h.expiresAt,
+  });
+  return h;
+}
+export async function revokeHandoff(d: Deps, userId: string, requestId: string) {
+  const out = await revokeHandoffImpl(d, userId, requestId);
+  if (out.revoked > 0)
+    await log(d, requestId, userId, "owner", "handoff_revoked", { reason: "owner revoked" });
+  return out;
+}
+export async function decideJobMilestone(
+  d: Deps,
+  userId: string,
+  requestId: string,
+  jobId: string,
+  input: unknown,
+) {
+  const j = await decideJobMilestoneImpl(d, userId, requestId, jobId, input);
+  await log(
+    d,
+    requestId,
+    userId,
+    "owner",
+    j.status === "accepted" ? "milestone_accepted" : "revision_requested",
+    { milestone: j.title, note: j.decisionNote },
+  );
+  return j;
+}
+export async function completeRequest(d: Deps, userId: string, requestId: string) {
+  const had = await hadHandoff(d, requestId);
+  const r = await completeRequestImpl(d, userId, requestId);
+  if (had) await log(d, requestId, null, "system", "handoff_revoked", { reason: "job completed" });
+  await log(d, requestId, userId, "owner", "completed", { evidence: r.completionEvidence });
+  return r;
+}
+export async function cancelRequest(d: Deps, userId: string, requestId: string) {
+  const had = await hadHandoff(d, requestId);
+  const r = await cancelRequestImpl(d, userId, requestId);
+  if (had)
+    await log(d, requestId, null, "system", "handoff_revoked", { reason: "request cancelled" });
+  await log(d, requestId, userId, "owner", "cancelled");
+  return r;
+}
+export async function expertAccept(d: Deps, userId: string, requestId: string) {
+  const r = await expertAcceptImpl(d, userId, requestId);
+  await log(d, requestId, userId, "expert", "accepted");
+  return r;
+}
+export async function expertDecline(d: Deps, userId: string, requestId: string) {
+  const had = await hadHandoff(d, requestId);
+  const r = await expertDeclineImpl(d, userId, requestId);
+  if (had)
+    await log(d, requestId, null, "system", "handoff_revoked", { reason: "expert declined" });
+  await log(d, requestId, userId, "expert", "declined");
+  return r;
+}
+export async function expertAddJobMilestone(
+  d: Deps,
+  userId: string,
+  requestId: string,
+  input: unknown,
+) {
+  const j = await expertAddJobMilestoneImpl(d, userId, requestId, input);
+  await log(d, requestId, userId, "expert", "milestone_added", { milestone: j.title });
+  return j;
+}
+export async function expertSubmitJobMilestone(
+  d: Deps,
+  userId: string,
+  requestId: string,
+  jobId: string,
+  input: unknown,
+) {
+  const j = await expertSubmitJobMilestoneImpl(d, userId, requestId, jobId, input);
+  await log(d, requestId, userId, "expert", "milestone_submitted", {
+    milestone: j.title,
+    deliverableUrl: j.deliverableUrl,
+  });
+  return j;
+}
+export async function expertMarkDelivered(d: Deps, userId: string, requestId: string) {
+  const r = await expertMarkDeliveredImpl(d, userId, requestId);
+  await log(d, requestId, userId, "expert", "delivered");
+  return r;
 }

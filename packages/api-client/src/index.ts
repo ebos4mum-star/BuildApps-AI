@@ -13,6 +13,7 @@ import type {
   InstallationRow,
   JobMilestoneRow,
   LessonPayload,
+  RequestEventRow,
   RequestStatus,
   RequestView,
   ServiceRequestRow,
@@ -34,6 +35,7 @@ export type {
   LessonPayload,
   Project,
   ProjectIntake,
+  RequestEventRow,
   RequestStatus,
   RequestView,
   ServiceRequestRow,
@@ -77,6 +79,7 @@ export interface ExpertRequestDetail {
   request: ServiceRequestRow;
   jobs: JobMilestoneRow[];
   handoff: HandoffRow | null;
+  events: RequestEventRow[];
 }
 
 export class ApiError extends Error {

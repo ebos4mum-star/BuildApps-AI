@@ -27,7 +27,15 @@ const SEV_CLS: Record<string, string> = {
   info: "",
 };
 
-export function FindingsPanel({ ws, reload }: { ws: WorkspaceView; reload: () => Promise<void> }) {
+export function FindingsPanel({
+  ws,
+  reload,
+  onAskExpert,
+}: {
+  ws: WorkspaceView;
+  reload: () => Promise<void>;
+  onAskExpert?: (summary: string) => void;
+}) {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [dismissing, setDismissing] = useState<string | null>(null);
@@ -132,6 +140,22 @@ export function FindingsPanel({ ws, reload }: { ws: WorkspaceView; reload: () =>
           <option value="resolved">Resolved (I fixed it)</option>
           <option value="dismissed">Dismiss (accept risk)</option>
         </select>
+        {onAskExpert && !ws.helpRequest && f.status !== "resolved" && (
+          <button
+            type="button"
+            className="btn secondary small"
+            onClick={() =>
+              onAskExpert(
+                `Please help with this finding (${f.severity}): "${f.title}". ${f.remedy}`.slice(
+                  0,
+                  1900,
+                ),
+              )
+            }
+          >
+            Ask an expert about this
+          </button>
+        )}
       </div>
       {dismissing === f.id && (
         <form

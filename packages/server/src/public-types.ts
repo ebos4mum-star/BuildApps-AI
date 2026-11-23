@@ -8,6 +8,8 @@ export type { AttemptOutcome } from "./attempts";
 export type { WorkspaceView } from "./workspace";
 export type { RequestView, ExpertWorkspaceView } from "./experts";
 export type {
+  EventRole,
+  RequestEventRow,
   ExpertRow,
   ExpertStatus,
   FindingRow,
