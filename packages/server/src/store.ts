@@ -43,6 +43,8 @@ export interface ProjectStore {
   get(ownerId: string, id: string): Promise<Project | null>;
   /** Persists state/milestones/recovery of an existing project owned by `project.ownerId`. */
   save(project: Project): Promise<void>;
+  /** Human Developer Rescue intake: queued for manual matching by the team. */
+  createServiceRequest(ownerId: string, projectId: string, summary: string): Promise<void>;
 }
 
 export interface Stores {

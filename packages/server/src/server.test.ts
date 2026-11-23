@@ -232,3 +232,20 @@ describe("project service", () => {
     ).rejects.toMatchObject({ code: "invalid" });
   });
 });
+
+describe("dashboard & lesson delivery", () => {
+  it("serves solution-free lessons only when unlocked, and reflects progress", async () => {
+    const { getDashboard, getLessonForUser } = await import("./index");
+    const s = createMemoryStores();
+    expect(await getLessonForUser(s.progress, U, "ship-1")).toBeNull();
+    expect(await getLessonForUser(s.progress, U, "nope")).toBeNull();
+    const lesson = await getLessonForUser(s.progress, U, "anatomy-1");
+    expect(JSON.stringify(lesson)).not.toMatch(/"solution"|"explanation"|"feedback"/);
+    await submit(s, "anatomy-1-match", right(ex("anatomy-1-match")));
+    const d = await getDashboard(s.progress, U, T0);
+    expect(d.totalXp).toBeGreaterThan(0);
+    expect(d.streak).toMatchObject({ displayed: 1, status: "completed_today" });
+    expect(d.achievements.find((a) => a.id === "first-exercise")?.earned).toBe(true);
+    expect(d.path.nextLessonId).toBe("anatomy-1");
+  });
+});

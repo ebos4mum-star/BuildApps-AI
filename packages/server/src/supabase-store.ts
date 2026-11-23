@@ -231,6 +231,13 @@ export class SupabaseProjectStore implements ProjectStore {
     return data ? toProject(data as ProjectRow) : null;
   }
 
+  async createServiceRequest(ownerId: string, projectId: string, summary: string) {
+    const { error } = await this.db
+      .from("service_requests")
+      .insert({ project_id: projectId, requester_id: ownerId, summary });
+    fail("create service request", error);
+  }
+
   async save(p: Project) {
     const { error } = await this.db
       .from("projects")

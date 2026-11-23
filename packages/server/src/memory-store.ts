@@ -85,6 +85,10 @@ export class MemoryProgressStore implements ProgressStore {
 
 export class MemoryProjectStore implements ProjectStore {
   readonly rows = new Map<string, Project>();
+  readonly serviceRequests: { ownerId: string; projectId: string; summary: string }[] = [];
+  async createServiceRequest(ownerId: string, projectId: string, summary: string) {
+    this.serviceRequests.push({ ownerId, projectId, summary });
+  }
   async create(p: Project) {
     this.rows.set(p.id, structuredClone(p));
   }
