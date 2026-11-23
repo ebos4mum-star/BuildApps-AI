@@ -51,7 +51,15 @@ jobs:
           # authenticated GitHub API calls avoid the unauthenticated rate limit when resolving "latest"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Start local Supabase (Docker, no cloud resources)
-        run: supabase start -x studio,imgproxy,vector,edge-runtime,logflare,realtime,storage-api
+        # retried: shared runners occasionally have a host port already bound
+        run: |
+          for attempt in 1 2 3; do
+            supabase start -x studio,imgproxy,vector,edge-runtime,logflare,realtime,storage-api && exit 0
+            echo "supabase start failed (attempt $attempt); retrying"
+            supabase stop --no-backup || true
+            sleep 5
+          done
+          exit 1
       - name: Run real-Supabase integration tests
         run: |
           eval "$(supabase status -o env | sed 's/^/export /')"
