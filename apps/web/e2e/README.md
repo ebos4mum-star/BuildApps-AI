@@ -28,3 +28,9 @@ Owner, a second user (isolation), an expert and an admin: evidence-backed readin
 verified, listing details (credentials refused), release lifecycle (draft -> ready -> submitted -> rejected -> corrected
 -> resubmitted -> approved -> released), idempotent submission, invalid transitions, cross-user 404s, Publishing
 Assistance with a publishing-only handoff. Needs a fresh dev server: `node e2e/publishing-flows.js /tmp`.
+
+## Cross-platform shared state (`parity-flows.js`)
+
+Drives the API client the mobile app ships (same `createApiClient`) and the web UI in a browser against one backend, in both
+directions, plus the server rules (refused claims, account isolation). Needs a fresh dev server:
+`node --experimental-transform-types e2e/parity-flows.js`.
