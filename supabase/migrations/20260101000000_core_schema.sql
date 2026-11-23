@@ -108,6 +108,7 @@ create table public.project_milestones (
   title text not null,
   required boolean not null default true,
   weight integer not null default 1 check (weight between 1 and 10),
+  position integer not null default 0,
   status text not null default 'todo' check (status in ('todo', 'in_progress', 'done')),
   /* 'verified' can only be written by the server and must carry evidence */
   completion_source text check (completion_source in ('user_reported', 'verified')),
