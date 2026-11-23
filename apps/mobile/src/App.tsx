@@ -3,17 +3,21 @@ import { useEffect, useState } from "react";
 import { SafeAreaView, Text, View } from "react-native";
 import { LearnScreen } from "./screens/Learn";
 import { LessonScreen } from "./screens/Lesson";
+import { AdminScreen } from "./screens/Admin";
+import { ExpertScreen } from "./screens/Expert";
 import { LoginScreen } from "./screens/Login";
 import { NewProject, ProjectsList } from "./screens/Projects";
 import { WorkspaceScreen } from "./screens/Workspace";
 import { Button } from "./components/ui";
-import { supabase } from "./lib/session";
+import { api, supabase } from "./lib/session";
 import { c } from "./theme";
 
 type Screen =
   | { name: "learn" }
   | { name: "lesson"; id: string }
   | { name: "projects" }
+  | { name: "expert" }
+  | { name: "admin" }
   | { name: "new" }
   | { name: "project"; id: string };
 
@@ -21,16 +25,32 @@ export default function App() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [screen, setScreen] = useState<Screen>({ name: "learn" });
   const [refresh, setRefresh] = useState(0);
+  const [admin, setAdmin] = useState(false);
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setAuthed(!!data.session));
-    const { data } = supabase.auth.onAuthStateChange((_e, session) => setAuthed(!!session));
+    const { data } = supabase.auth.onAuthStateChange((_e, session) => {
+      setAuthed(!!session);
+      if (session)
+        api.adminMe().then(setAdmin, () => setAdmin(false)); // only decides whether to show the Admin tab
+      else setAdmin(false);
+    });
     return () => data.subscription.unsubscribe();
   }, []);
 
   if (authed === null) return <View style={{ flex: 1, backgroundColor: c.bg }} />;
-  const tab = (name: "learn" | "projects", label: string) => (
+  const tab = (name: "learn" | "projects" | "expert" | "admin", label: string) => (
     <Text
-      onPress={() => setScreen(name === "learn" ? { name: "learn" } : { name: "projects" })}
+      onPress={() =>
+        setScreen(
+          name === "learn"
+            ? { name: "learn" }
+            : name === "projects"
+              ? { name: "projects" }
+              : name === "expert"
+                ? { name: "expert" }
+                : { name: "admin" },
+        )
+      }
       accessibilityRole="tab"
       accessibilityState={{ selected: screen.name === name }}
       style={{
@@ -61,6 +81,8 @@ export default function App() {
             >
               {tab("learn", "Learn")}
               {tab("projects", "Projects")}
+              {tab("expert", "Expert")}
+              {admin ? tab("admin", "Admin") : null}
               <View style={{ flex: 1 }} />
               <View style={{ width: 110, paddingRight: 8 }}>
                 <Button title="Sign out" kind="secondary" onPress={() => supabase.auth.signOut()} />
@@ -83,6 +105,8 @@ export default function App() {
                 }}
               />
             )}
+            {screen.name === "expert" && <ExpertScreen />}
+            {screen.name === "admin" && <AdminScreen />}
             {screen.name === "projects" && (
               <ProjectsList
                 onNew={() => setScreen({ name: "new" })}

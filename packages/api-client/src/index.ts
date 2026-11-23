@@ -255,8 +255,6 @@ export function createApiClient(opts: ApiClientOptions) {
         { status, ...(note ? { note } : {}) },
       ).then((r) => r.finding),
     // ---- Human Developer Rescue: project owner ----
-    myRequests: () =>
-      call<{ requests: RequestView[] }>("GET", "/api/rescue/requests").then((r) => r.requests),
     myRequest: (id: string) => call<RequestView>("GET", `/api/rescue/requests/${enc(id)}`),
     grantHandoff: (id: string, scopes: HandoffScope[], days: number) =>
       call<{ handoff: HandoffRow }>("POST", `/api/rescue/requests/${enc(id)}/handoff`, {
@@ -339,8 +337,6 @@ export function createApiClient(opts: ApiClientOptions) {
       call<{ projects: Project[] }>("GET", "/api/projects").then((r) => r.projects),
     createProject: (intake: ProjectIntake) =>
       call<{ project: Project }>("POST", "/api/projects", intake).then((r) => r.project),
-    getProject: (id: string) =>
-      call<{ project: Project }>("GET", `/api/projects/${id}`).then((r) => r.project),
     setProjectState: (id: string, state: ProjectState) =>
       call<{ project: Project }>("POST", `/api/projects/${id}/state`, { state }).then(
         (r) => r.project,
