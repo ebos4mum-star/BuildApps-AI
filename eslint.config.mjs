@@ -7,6 +7,7 @@ export default tseslint.config(
     ignores: [
       "**/next-env.d.ts",
       "apps/web/e2e/**",
+      "apps/mobile/metro.config.js",
       "**/node_modules/**",
       "**/dist/**",
       "**/.next/**",
