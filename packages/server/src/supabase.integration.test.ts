@@ -1,16 +1,33 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { curriculum } from "@buildapps/lessons";
+import { FakeGitHubGateway } from "@buildapps/github";
 import {
+  adminListExperts,
+  adminMatch,
+  adminReviewExpert,
   advanceProjectRecovery,
+  applyAsExpert,
   askForHumanHelp,
   changeProjectState,
+  completeGithubConnect,
   createSupabaseStores,
   createUserProject,
+  disconnectGithub,
+  expertWorkspace,
   getDashboard,
+  getWorkspace,
+  grantHandoff,
+  linkProjectRepo,
   reportMilestone,
+  revokeHandoff,
+  runScan,
+  runVerification,
+  setFindingStatus,
+  startGithubConnect,
   submitAttempt,
   verifyAccessToken,
+  type Deps,
   type Stores,
 } from "./index";
 
@@ -19,11 +36,11 @@ import {
  * Requires SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY; skipped otherwise.
  */
 const {
-  SUPABASE_URL: URL,
+  SUPABASE_URL: SB_URL,
   SUPABASE_ANON_KEY: ANON,
   SUPABASE_SERVICE_ROLE_KEY: SERVICE,
 } = process.env;
-const enabled = Boolean(URL && ANON && SERVICE);
+const enabled = Boolean(SB_URL && ANON && SERVICE);
 
 // In CI the job sets REQUIRE_SUPABASE_INTEGRATION=1 so a missing env can never turn into a silent skip.
 if (process.env.REQUIRE_SUPABASE_INTEGRATION === "1" && !enabled) {
@@ -44,11 +61,11 @@ describe.skipIf(!enabled)("real Supabase integration", () => {
       email_confirm: true,
     });
     if (error) throw error;
-    const anon = createClient(URL!, ANON!, { auth: { persistSession: false } });
+    const anon = createClient(SB_URL!, ANON!, { auth: { persistSession: false } });
     const { data: s, error: e2 } = await anon.auth.signInWithPassword({ email, password });
     if (e2) throw e2;
     const token = s.session!.access_token;
-    const client = createClient(URL!, ANON!, {
+    const client = createClient(SB_URL!, ANON!, {
       auth: { persistSession: false },
       global: { headers: { Authorization: `Bearer ${token}` } },
     });
@@ -58,7 +75,7 @@ describe.skipIf(!enabled)("real Supabase integration", () => {
   }
 
   beforeAll(() => {
-    admin = createClient(URL!, SERVICE!, {
+    admin = createClient(SB_URL!, SERVICE!, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     stores = createSupabaseStores(admin);
@@ -79,8 +96,8 @@ describe.skipIf(!enabled)("real Supabase integration", () => {
     const { data: pr } = await admin.from("user_progress").select("total_xp").eq("user_id", u.id);
     expect(p).toHaveLength(1);
     expect(pr).toEqual([{ total_xp: 0 }]);
-    expect(await verifyAccessToken(URL!, ANON!, u.token)).toBe(u.id);
-    expect(await verifyAccessToken(URL!, ANON!, "not-a-token")).toBeNull();
+    expect(await verifyAccessToken(SB_URL!, ANON!, u.token)).toBe(u.id);
+    expect(await verifyAccessToken(SB_URL!, ANON!, "not-a-token")).toBeNull();
   });
 
   it("RLS: users read only their own data and cannot write progression", async () => {
@@ -213,4 +230,195 @@ describe.skipIf(!enabled)("real Supabase integration", () => {
       ).error,
     ).not.toBeNull();
   });
+
+  // ---------- Batch 2 on the real stack ----------
+  const gateway = new FakeGitHubGateway();
+  const mkDeps = (): Deps => ({ stores, gateway, stateSecret: "s".repeat(32) });
+
+  async function connectedRescue(userId: string, repo: "stuck-app" | "healthy-app") {
+    const deps = mkDeps();
+    const p = await createUserProject(stores.projects, userId, {
+      journey: "rescue",
+      name: repo,
+      repoUrl: `https://github.com/demo/${repo}`,
+      problem: "Broken after AI edits, need help",
+    });
+    await changeProjectState(stores.projects, userId, p.id, "active");
+    const state = new URL(startGithubConnect(deps, userId).url, "http://x").searchParams.get(
+      "state",
+    )!;
+    const { installation } = await completeGithubConnect(deps, {
+      state,
+      installationId: 1001,
+      code: "dev",
+    });
+    await linkProjectRepo(deps, userId, p.id, installation.id, `demo/${repo}`);
+    return { deps, p, installation };
+  }
+
+  it("GitHub link + scan + findings persist; owner reads via RLS, others cannot; rescans are idempotent", async () => {
+    const a = await makeUser();
+    const b = await makeUser();
+    const { deps, p, installation } = await connectedRescue(a.id, "stuck-app");
+    expect((await stores.projects.getGithubLink(a.id, p.id)).installationRowId).toBe(
+      installation.id,
+    );
+
+    const first = await runScan(deps, a.id, p.id);
+    expect(first.sync.new).toBeGreaterThan(5);
+    const second = await runScan(deps, a.id, p.id);
+    expect(second.sync).toEqual({ new: 0, reopened: 0, resolved: 0 });
+
+    const mine = await a.client.from("project_findings").select("fingerprint,kind,status,remedy");
+    expect(mine.error).toBeNull();
+    expect(mine.data!.length).toBe(first.sync.new);
+    expect(mine.data!.every((f) => f.remedy.length > 10)).toBe(true);
+    expect((await b.client.from("project_findings").select("id")).data).toEqual([]);
+    expect((await a.client.from("scans").select("id")).data!.length).toBe(2);
+    expect(
+      (
+        await a.client
+          .from("project_findings")
+          .update({ status: "resolved" })
+          .eq("project_id", p.id)
+      ).error,
+    ).not.toBeNull();
+    expect(JSON.stringify(mine.data)).not.toContain("Zq81LmN4pR7sT0uVwX2yAb3C"); // secrets never stored
+
+    // verified assess milestone + idempotent XP through the real award_xp RPC
+    const proj = await stores.projects.get(a.id, p.id);
+    expect(proj!.milestones.find((m) => m.id === "assess")!.completion!.source).toBe("verified");
+    const state = await stores.progress.load(a.id, "");
+    expect(state.verifiedMilestones).toBe(1);
+    expect(state.earnedAchievements.has("first-verified-milestone")).toBe(true);
+    const xp = state.totalXp;
+    await runScan(deps, a.id, p.id);
+    expect((await stores.progress.load(a.id, "")).totalXp).toBe(xp);
+
+    // user decisions survive a rescan, via the real sync_findings function
+    const f = (await stores.scans.listFindings(p.id)).find((x) => x.severity === "critical")!;
+    await setFindingStatus(deps, a.id, p.id, f.id, {
+      status: "dismissed",
+      note: "accepted for now",
+    });
+    await runScan(deps, a.id, p.id);
+    expect(await stores.scans.getFinding(p.id, f.id)).toMatchObject({
+      status: "dismissed",
+      statusNote: "accepted for now",
+      decidedByUser: true,
+    });
+  }, 30_000);
+
+  it("verification run stores evidence and verifies milestones only from CI + static checks", async () => {
+    const u = await makeUser();
+    const { deps, p } = await connectedRescue(u.id, "healthy-app");
+    const out = await runVerification(deps, u.id, p.id);
+    expect(out.verified.map((v) => v.milestoneKey).sort()).toEqual([
+      "assess",
+      "fix-blockers",
+      "restore-build",
+      "tests-pass",
+    ]);
+    const { data } = await u.client.from("verification_runs").select("checks,commit_sha");
+    expect(data).toHaveLength(1);
+    expect(
+      (data![0]!.checks as { id: string; status: string }[]).find((c) => c.id === "ci.green")!
+        .status,
+    ).toBe("pass");
+    const w = await getWorkspace(deps, u.id, p.id);
+    expect(w.readiness.ready).toBe(true);
+    const { error } = await u.client
+      .from("verification_runs")
+      .insert({ project_id: p.id, requested_by: u.id, status: "complete" });
+    expect(error).not.toBeNull(); // clients cannot forge evidence
+    await disconnectGithub(deps, u.id, w.github.installationRowId!);
+    expect((await stores.projects.getGithubLink(u.id, p.id)).installationRowId).toBeNull();
+  }, 30_000);
+
+  it("expert access: RLS follows the owner's scoped, time-limited, revocable handoff", async () => {
+    const owner = await makeUser();
+    const expertUser = await makeUser();
+    const stranger = await makeUser();
+    const adminUser = await makeUser();
+    await admin.from("admins").insert({ user_id: adminUser.id });
+    const { deps, p } = await connectedRescue(owner.id, "stuck-app");
+    await runScan(deps, owner.id, p.id);
+    await askForHumanHelp(stores.projects, owner.id, p.id, "Please help me fix this broken build");
+    const req = (await stores.rescue.listRequestsForRequester(owner.id))[0]!;
+
+    // expert application is pending until an administrator approves it
+    const expert = await applyAsExpert(deps, expertUser.id, {
+      displayName: "Dana",
+      skills: ["next"],
+    });
+    expect(await adminListExperts(deps, adminUser.id, "pending")).toHaveLength(1);
+    await expect(adminMatch(deps, adminUser.id, req.id, expert.id)).rejects.toMatchObject({
+      code: "conflict",
+    });
+    await adminReviewExpert(deps, adminUser.id, expert.id, {
+      decision: "approved",
+      note: "portfolio checked",
+    });
+    await adminMatch(deps, adminUser.id, req.id, expert.id);
+
+    expect((await expertUser.client.from("project_findings").select("id")).data).toEqual([]); // no handoff yet
+    expect((await expertUser.client.from("projects").select("id")).data).toEqual([]);
+    await grantHandoff(deps, owner.id, req.id, { scopes: ["view_findings"], days: 7 });
+    expect(
+      (await expertUser.client.from("project_findings").select("id")).data!.length,
+    ).toBeGreaterThan(0);
+    expect((await expertUser.client.from("scans").select("id")).data).toEqual([]); // scope not granted
+    expect((await expertUser.client.from("projects").select("id")).data).toEqual([]); // view_project not granted
+    expect((await stranger.client.from("project_findings").select("id")).data).toEqual([]);
+    expect(
+      (
+        await expertUser.client
+          .from("project_findings")
+          .update({ status: "resolved" })
+          .eq("project_id", p.id)
+      ).error,
+    ).not.toBeNull();
+    const view = await expertWorkspace(deps, expertUser.id, req.id);
+    expect(view.findings!.length).toBeGreaterThan(0);
+
+    // revoke => RLS closes immediately
+    await revokeHandoff(deps, owner.id, req.id);
+    expect((await expertUser.client.from("project_findings").select("id")).data).toEqual([]);
+    await grantHandoff(deps, owner.id, req.id, {
+      scopes: ["view_project", "view_findings"],
+      days: 1,
+    });
+    expect((await expertUser.client.from("projects").select("name")).data).toEqual([
+      { name: "stuck-app" },
+    ]);
+
+    // expiry is enforced by the database itself
+    await admin
+      .from("project_handoffs")
+      .update({
+        granted_at: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+        expires_at: new Date(Date.now() - 1000).toISOString(),
+      })
+      .eq("service_request_id", req.id)
+      .eq("status", "active");
+    expect((await expertUser.client.from("project_findings").select("id")).data).toEqual([]);
+    expect((await expertUser.client.from("projects").select("id")).data).toEqual([]);
+
+    // suspension cuts access even for a fresh handoff
+    await revokeHandoff(deps, owner.id, req.id);
+    await grantHandoff(deps, owner.id, req.id, { scopes: ["view_findings"], days: 3 });
+    await adminReviewExpert(deps, adminUser.id, expert.id, { decision: "suspended" });
+    expect((await expertUser.client.from("project_findings").select("id")).data).toEqual([]);
+
+    // clients can never edit expert status or admins
+    expect(
+      (
+        await expertUser.client
+          .from("expert_profiles")
+          .update({ status: "approved" })
+          .eq("id", expert.id)
+      ).error,
+    ).not.toBeNull();
+    expect((await expertUser.client.from("admins").select("*")).error).not.toBeNull();
+  }, 40_000);
 });
