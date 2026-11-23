@@ -21,3 +21,9 @@ scoped handoff, revision + resubmission, completion, disconnect. Needs a fresh d
 ```
 node e2e/batch2-flows.js /tmp
 ```
+
+## Stage 6 journey (`publishing-flows.js`)
+Owner, a second user (isolation), an expert and an admin: evidence-backed readiness, claims that can never become
+verified, listing details (credentials refused), release lifecycle (draft -> ready -> submitted -> rejected -> corrected
+-> resubmitted -> approved -> released), idempotent submission, invalid transitions, cross-user 404s, Publishing
+Assistance with a publishing-only handoff. Needs a fresh dev server: `node e2e/publishing-flows.js /tmp`.
