@@ -367,6 +367,22 @@ describe.skipIf(!enabled)("real Supabase integration", () => {
     expect(
       (await expertUser.client.from("project_findings").select("id")).data!.length,
     ).toBeGreaterThan(0);
+    // append-only job activity trail: visible to owner + assigned expert only, never writable by clients
+    const trail = await stores.rescue.listEvents(req.id);
+    expect(trail.map((e) => e.action)).toEqual(["request_created", "matched", "handoff_granted"]);
+    expect((await owner.client.from("request_events").select("action")).data).toHaveLength(3);
+    expect((await expertUser.client.from("request_events").select("action")).data).toHaveLength(3);
+    expect((await stranger.client.from("request_events").select("action")).data).toEqual([]);
+    const forged = await owner.client
+      .from("request_events")
+      .insert({ service_request_id: req.id, actor_role: "owner", action: "forged" });
+    expect(forged.error).not.toBeNull();
+    const tamper = await admin
+      .from("request_events")
+      .update({ action: "tampered" })
+      .eq("service_request_id", req.id);
+    expect(tamper.error).not.toBeNull(); // immutable even for the service role
+
     expect((await expertUser.client.from("scans").select("id")).data).toEqual([]); // scope not granted
     expect((await expertUser.client.from("projects").select("id")).data).toEqual([]); // view_project not granted
     expect((await stranger.client.from("project_findings").select("id")).data).toEqual([]);
