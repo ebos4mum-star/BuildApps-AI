@@ -1,0 +1,12 @@
+# Local-development configuration for `supabase start` (requires Docker). No cloud resources.
+[api]
+port = 54321
+[db]
+port = 54322
+major_version = 15
+[auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+enable_signup = true
+[auth.email]
+enable_confirmations = false
