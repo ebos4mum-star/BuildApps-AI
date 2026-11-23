@@ -4,9 +4,11 @@ import type {
   Project,
   ProjectJourney,
   ProjectState,
+  RepoRef,
   RescueStage,
 } from "@buildapps/core";
 import { INITIAL_STREAK } from "@buildapps/core";
+import { SupabaseGitHubStore, SupabaseRescueStore, SupabaseScanStore } from "./supabase-store2";
 import type {
   ApplyAttemptInput,
   ApplyAttemptResult,
@@ -80,9 +82,46 @@ export class SupabaseProgressStore implements ProgressStore {
       earnedAchievements: new Set((achievements.data ?? []).map((r) => r.achievement_id as string)),
       timeZone: profile.data?.timezone ?? "UTC",
       verifiedMilestones: verified.count ?? 0,
-      verifiedProjectsCompleted: 0, // becomes non-zero once the Verification Lab can mark projects verified
+      verifiedProjectsCompleted: await this.countVerifiedCompletedProjects(userId),
       priorAttempts: attempts.count ?? 0,
     };
+  }
+
+  private async countVerifiedCompletedProjects(userId: string): Promise<number> {
+    const { data, error } = await this.db
+      .from("projects")
+      .select("id, project_milestones(required, weight, status, completion_source)")
+      .eq("owner_id", userId)
+      .eq("state", "completed");
+    fail("load completed projects", error);
+    type M = {
+      required: boolean;
+      weight: number;
+      status: string;
+      completion_source: string | null;
+    };
+    return (data as { project_milestones: M[] }[]).filter((p) => {
+      const req = p.project_milestones.filter((m) => m.required);
+      return (
+        req.length > 0 &&
+        req.every((m) => m.status === "done" && m.completion_source === "verified")
+      );
+    }).length;
+  }
+
+  async grant(i: { userId: string; awards: ApplyAttemptInput["awards"]; achievements: string[] }) {
+    const { data, error } = await this.db.rpc("award_xp", {
+      p_user_id: i.userId,
+      p_awards: i.awards.map((a) => ({
+        award_key: a.awardKey,
+        source: a.source,
+        xp: a.xp,
+        occurred_at: a.occurredAt,
+      })),
+      p_achievements: i.achievements,
+    });
+    fail("award_xp", error);
+    return { xpAdded: data.xp_added as number, totalXp: data.total_xp as number };
   }
 
   async apply(i: ApplyAttemptInput): Promise<ApplyAttemptResult> {
@@ -231,6 +270,50 @@ export class SupabaseProjectStore implements ProjectStore {
     return data ? toProject(data as ProjectRow) : null;
   }
 
+  async getGithubLink(ownerId: string, projectId: string) {
+    const { data, error } = await this.db
+      .from("projects")
+      .select("github_installation_id")
+      .eq("id", projectId)
+      .eq("owner_id", ownerId)
+      .maybeSingle();
+    fail("get github link", error);
+    return {
+      installationRowId: (data?.github_installation_id as string | null | undefined) ?? null,
+    };
+  }
+
+  async setRepo(ownerId: string, projectId: string, repo: RepoRef, installationRowId: string) {
+    const { error } = await this.db
+      .from("projects")
+      .update({
+        repo_owner: repo.owner,
+        repo_name: repo.name,
+        github_installation_id: installationRowId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", projectId)
+      .eq("owner_id", ownerId);
+    fail("set repo", error);
+  }
+
+  async unlinkRepo(githubInstallationId: number, owner: string, name: string) {
+    const { data, error } = await this.db
+      .from("github_installations")
+      .select("id")
+      .eq("installation_id", githubInstallationId);
+    fail("find installations", error);
+    const ids = (data ?? []).map((r) => r.id as string);
+    if (ids.length === 0) return;
+    const { error: e2 } = await this.db
+      .from("projects")
+      .update({ github_installation_id: null })
+      .in("github_installation_id", ids)
+      .eq("repo_owner", owner)
+      .eq("repo_name", name);
+    fail("unlink repo", e2);
+  }
+
   async createServiceRequest(ownerId: string, projectId: string, summary: string) {
     const { error } = await this.db
       .from("service_requests")
@@ -269,4 +352,7 @@ export class SupabaseProjectStore implements ProjectStore {
 export const createSupabaseStores = (serviceClient: SupabaseClient): Stores => ({
   progress: new SupabaseProgressStore(serviceClient),
   projects: new SupabaseProjectStore(serviceClient),
+  github: new SupabaseGitHubStore(serviceClient),
+  scans: new SupabaseScanStore(serviceClient),
+  rescue: new SupabaseRescueStore(serviceClient),
 });

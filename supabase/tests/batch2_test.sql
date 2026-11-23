@@ -52,6 +52,14 @@ begin
   assert (select status from public.project_findings where fingerprint = 'fp3') = 'open';
   assert (select status from public.project_findings where fingerprint = 'fp2') = 'dismissed', 'still dismissed after reappearing';
   assert (select count(*) from public.project_findings where project_id = p) = 4, 'no duplicate fingerprints';
+
+  -- a user CLAIMS fp1 is fixed while the scan still sees it => reopened; claim on fp4 (really gone next scan) => confirmed
+  update public.project_findings set status = 'resolved', resolution_source = 'user', decided_by_user = true where fingerprint in ('fp1', 'fp4');
+  insert into public.scans (id, project_id, requested_by, status) values ('5ca00000-0000-0000-0000-000000000004', p, 'c0000000-0000-0000-0000-00000000000c', 'complete');
+  r := public.sync_findings(p, '5ca00000-0000-0000-0000-000000000004', (f -> 0)::text::jsonb || '[]'::jsonb);
+  assert (select status from public.project_findings where fingerprint = 'fp1') = 'open', 'user claim contradicted by scan => reopened';
+  assert (select status || '/' || resolution_source from public.project_findings where fingerprint = 'fp4') = 'resolved/rescan', 'user claim confirmed by scan => rescan-resolved';
+  assert (select remedy from public.project_findings where fingerprint = 'fp1') is not null;
 end $$;
 
 -- ===== server-only award_xp is idempotent =====
@@ -80,7 +88,7 @@ select pg_temp.expect_fail($$update public.service_requests set status = 'matche
 reset role;
 select pg_temp.act_as('c0000000-0000-0000-0000-00000000000c');
 select pg_temp.expect_rows($$select 1 from public.project_findings$$, 4, 'owner sees findings');
-select pg_temp.expect_rows($$select 1 from public.scans$$, 3, 'owner sees scans');
+select pg_temp.expect_rows($$select 1 from public.scans$$, 4, 'owner sees scans');
 select pg_temp.expect_rows($$select 1 from public.job_milestones$$, 1, 'requester sees job milestones');
 select pg_temp.expect_rows($$select 1 from public.project_handoffs$$, 1, 'owner sees handoffs');
 select pg_temp.expect_fail($$update public.project_findings set status = 'resolved'$$, 'client finding write');

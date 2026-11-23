@@ -344,6 +344,31 @@ describe("computeReadiness", () => {
       }).ready,
     ).toBe(true);
   });
+  it("a user's own 'resolved' claim is not evidence for a serious finding", () => {
+    for (const severity of ["critical", "high"] as const)
+      expect(
+        computeReadiness({
+          ...base,
+          findings: [{ severity, status: "resolved", resolutionSource: "user" }],
+        }).ready,
+      ).toBe(false);
+    // but a lower-severity claim does not block readiness
+    expect(
+      computeReadiness({
+        ...base,
+        findings: [{ severity: "medium", status: "resolved", resolutionSource: "user" }],
+      }).ready,
+    ).toBe(true);
+  });
+  it("a dismissed serious finding stops blocking once the latest scan no longer detects it", () => {
+    const f = {
+      severity: "critical" as const,
+      status: "dismissed" as const,
+      resolutionSource: null,
+    };
+    expect(computeReadiness({ ...base, findings: [{ ...f, present: true }] }).ready).toBe(false);
+    expect(computeReadiness({ ...base, findings: [{ ...f, present: false }] }).ready).toBe(true);
+  });
   it("requires a scan and a non-failing verification run", () => {
     expect(computeReadiness({ ...base, hasScan: false, findings: [] }).ready).toBe(false);
     expect(computeReadiness({ ...base, latestVerification: "fail", findings: [] }).ready).toBe(

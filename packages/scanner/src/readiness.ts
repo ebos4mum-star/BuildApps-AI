@@ -4,6 +4,8 @@ export interface ReadinessFinding {
   severity: Severity;
   status: "open" | "in_progress" | "resolved" | "dismissed";
   resolutionSource: "user" | "rescan" | "verification" | null;
+  /** False when the latest scan no longer detects this finding (default true). */
+  present?: boolean;
 }
 
 export interface Readiness {
@@ -29,11 +31,14 @@ export function computeReadiness(input: {
   const unresolvedSerious = { count: 0 };
   for (const f of input.findings) {
     if (f.status === "open" || f.status === "in_progress") open[f.severity]++;
-    if (
-      (f.severity === "critical" || f.severity === "high") &&
-      (f.status === "open" || f.status === "in_progress" || f.status === "dismissed")
-    )
-      unresolvedSerious.count++;
+    const serious = f.severity === "critical" || f.severity === "high";
+    // Only a scan/verification can confirm a serious finding is gone. A user's own "resolved" claim
+    // is not evidence, and neither is a dismissal while the latest scan still detects the problem.
+    const confirmed =
+      f.status === "resolved" &&
+      (f.resolutionSource === "rescan" || f.resolutionSource === "verification");
+    // A serious finding the latest scan no longer sees is gone, whatever its recorded status.
+    if (serious && f.present !== false && !confirmed) unresolvedSerious.count++;
   }
   const blockers: string[] = [];
   const m = input.requiredMilestones;

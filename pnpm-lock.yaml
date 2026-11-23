@@ -223,9 +223,15 @@ importers:
       '@buildapps/core':
         specifier: workspace:*
         version: link:../core
+      '@buildapps/github':
+        specifier: workspace:*
+        version: link:../github
       '@buildapps/lessons':
         specifier: workspace:*
         version: link:../lessons
+      '@buildapps/scanner':
+        specifier: workspace:*
+        version: link:../scanner
       '@supabase/supabase-js':
         specifier: ^2.45.0
         version: 2.119.2

@@ -43,6 +43,7 @@ create table public.project_findings (
   severity text not null check (severity in ('critical', 'high', 'medium', 'low', 'info')),
   title text not null,
   detail text not null,
+  remedy text not null default '',
   evidence jsonb not null default '[]',
   milestone_key text,
   status text not null default 'open' check (status in ('open', 'in_progress', 'resolved', 'dismissed')),
@@ -206,26 +207,30 @@ begin
     select * into v_existing from public.project_findings
       where project_id = p_project_id and fingerprint = f ->> 'fingerprint' for update;
     if not found then
-      insert into public.project_findings (project_id, rule_id, fingerprint, kind, category, severity, title, detail, evidence, milestone_key, first_seen_scan, last_seen_scan)
+      insert into public.project_findings (project_id, rule_id, fingerprint, kind, category, severity, title, detail, remedy, evidence, milestone_key, first_seen_scan, last_seen_scan)
       values (p_project_id, f ->> 'rule_id', f ->> 'fingerprint', f ->> 'kind', f ->> 'category', f ->> 'severity',
-              f ->> 'title', f ->> 'detail', coalesce(f -> 'evidence', '[]'::jsonb), f ->> 'milestone_key', p_scan_id, p_scan_id);
+              f ->> 'title', f ->> 'detail', coalesce(f ->> 'remedy', ''), coalesce(f -> 'evidence', '[]'::jsonb), f ->> 'milestone_key', p_scan_id, p_scan_id);
       v_new := v_new + 1;
     else
       update public.project_findings set
-        kind = f ->> 'kind', severity = f ->> 'severity', title = f ->> 'title', detail = f ->> 'detail',
+        kind = f ->> 'kind', severity = f ->> 'severity', title = f ->> 'title', detail = f ->> 'detail', remedy = coalesce(f ->> 'remedy', remedy),
         evidence = coalesce(f -> 'evidence', '[]'::jsonb), milestone_key = f ->> 'milestone_key',
         last_seen_scan = p_scan_id, updated_at = now(),
-        -- a finding auto-resolved by an earlier scan that has come back is reopened;
-        -- anything the user decided (dismissed / in progress / resolved by user) is left alone
-        status = case when v_existing.status = 'resolved' and v_existing.resolution_source = 'rescan' then 'open' else v_existing.status end,
-        resolution_source = case when v_existing.status = 'resolved' and v_existing.resolution_source = 'rescan' then null else v_existing.resolution_source end
+        -- resolved findings that are seen again were never really fixed (auto-resolved by a scan, or
+        -- merely CLAIMED fixed by the user): reopen them. Dismissals and in-progress work are user
+        -- decisions and are left alone.
+        status = case when v_existing.status = 'resolved' then 'open' else v_existing.status end,
+        resolution_source = case when v_existing.status = 'resolved' then null else v_existing.resolution_source end
       where id = v_existing.id;
-      if v_existing.status = 'resolved' and v_existing.resolution_source = 'rescan' then v_reopened := v_reopened + 1; end if;
+      if v_existing.status = 'resolved' then v_reopened := v_reopened + 1; end if;
     end if;
   end loop;
 
+  -- not seen this time: open/in-progress work is confirmed fixed by the scan, and a user's "resolved"
+  -- claim is upgraded to scan-confirmed. Only scan-confirmed resolutions count towards verification.
   update public.project_findings set status = 'resolved', resolution_source = 'rescan', updated_at = now()
-    where project_id = p_project_id and status in ('open', 'in_progress') and last_seen_scan is distinct from p_scan_id;
+    where project_id = p_project_id and last_seen_scan is distinct from p_scan_id
+      and (status in ('open', 'in_progress') or (status = 'resolved' and resolution_source = 'user'));
   get diagnostics v_resolved = row_count;
   return jsonb_build_object('new', v_new, 'reopened', v_reopened, 'resolved', v_resolved);
 end $$;

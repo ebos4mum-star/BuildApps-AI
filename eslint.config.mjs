@@ -28,4 +28,34 @@ export default tseslint.config(
       "no-console": ["warn", { allow: ["warn", "error"] }],
     },
   },
+  {
+    // Client code must never import server-only packages (Node crypto, GitHub App keys, service-role
+    // stores). Types are available through the pure `@buildapps/server/types` entry instead.
+    files: [
+      "apps/mobile/**/*.{ts,tsx}",
+      "apps/web/src/components/**/*.{ts,tsx}",
+      "apps/web/src/app/(app)/**/*.{ts,tsx}",
+      "apps/web/src/app/login/**/*.{ts,tsx}",
+      "apps/web/src/app/onboarding/**/*.{ts,tsx}",
+      "apps/web/src/lib/session.ts",
+      "apps/web/src/lib/api-types.ts",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@buildapps/server",
+              message: "Server-only. Use @buildapps/api-client (types: @buildapps/server/types).",
+            },
+            {
+              name: "@buildapps/github",
+              message: "Server-only (Node crypto, GitHub App credentials).",
+            },
+          ],
+        },
+      ],
+    },
+  },
 );

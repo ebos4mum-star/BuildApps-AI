@@ -1,4 +1,21 @@
-import { INITIAL_STREAK, type Project } from "@buildapps/core";
+import { calculateProgress, INITIAL_STREAK, type Project, type RepoRef } from "@buildapps/core";
+import type { InstallationInfo } from "@buildapps/github/types";
+import { mergeFindings } from "./merge-findings";
+import type {
+  ExpertRow,
+  ExpertStatus,
+  FindingRow,
+  GitHubStore,
+  HandoffRow,
+  InstallationRow,
+  JobMilestoneRow,
+  RequestStatus,
+  RescueStore,
+  ScanRow,
+  ScanStore,
+  ServiceRequestRow,
+  VerificationRunRow,
+} from "./batch2-types";
 import type {
   ApplyAttemptInput,
   ApplyAttemptResult,
@@ -7,6 +24,9 @@ import type {
   ProjectStore,
   Stores,
 } from "./store";
+
+const uuid = () => crypto.randomUUID();
+const clone = <T>(v: T): T => structuredClone(v);
 
 interface UserRow {
   totalXp: number;
@@ -19,14 +39,32 @@ interface UserRow {
   achievements: Set<string>;
 }
 
+/** One shared in-memory "database" so every memory store sees consistent data. */
+export class MemoryDb {
+  users = new Map<string, UserRow>();
+  projects = new Map<string, Project>();
+  projectLinks = new Map<string, string>(); // projectId -> installation row id
+  installations = new Map<string, InstallationRow>();
+  scans = new Map<string, ScanRow>();
+  findings = new Map<string, FindingRow>();
+  verifications: VerificationRunRow[] = [];
+  experts = new Map<string, ExpertRow>();
+  admins = new Set<string>();
+  requests = new Map<string, ServiceRequestRow>();
+  handoffs = new Map<string, HandoffRow>();
+  jobs = new Map<string, JobMilestoneRow>();
+}
+
 /** In-memory stores with the same integrity semantics as the SQL (idempotent keys, versioning). */
 export class MemoryProgressStore implements ProgressStore {
-  readonly users = new Map<string, UserRow>();
   /** Test hook: runs before each apply() to simulate a concurrent writer. */
   beforeApply?: () => void;
-
+  constructor(private readonly db: MemoryDb = new MemoryDb()) {}
+  get users() {
+    return this.db.users;
+  }
   private row(userId: string): UserRow {
-    let r = this.users.get(userId);
+    let r = this.db.users.get(userId);
     if (!r) {
       r = {
         totalXp: 0,
@@ -38,12 +76,13 @@ export class MemoryProgressStore implements ProgressStore {
         awards: new Map(),
         achievements: new Set(),
       };
-      this.users.set(userId, r);
+      this.db.users.set(userId, r);
     }
     return r;
   }
   async load(userId: string, exerciseId: string): Promise<ProgressState> {
     const r = this.row(userId);
+    const mine = [...this.db.projects.values()].filter((p) => p.ownerId === userId);
     return {
       passedExerciseIds: new Set(r.passed),
       awardKeys: new Set(r.awards.keys()),
@@ -55,8 +94,12 @@ export class MemoryProgressStore implements ProgressStore {
       version: r.version,
       earnedAchievements: new Set(r.achievements),
       timeZone: r.timeZone,
-      verifiedMilestones: 0,
-      verifiedProjectsCompleted: 0,
+      verifiedMilestones: mine
+        .flatMap((p) => p.milestones)
+        .filter((m) => m.completion?.source === "verified").length,
+      verifiedProjectsCompleted: mine.filter(
+        (p) => p.state === "completed" && calculateProgress(p.milestones).completion === "verified",
+      ).length,
       priorAttempts: r.attempts.get(exerciseId) ?? 0,
     };
   }
@@ -66,17 +109,28 @@ export class MemoryProgressStore implements ProgressStore {
     if (r.version !== i.expectedVersion) return { status: "conflict" };
     r.attempts.set(i.exerciseId, (r.attempts.get(i.exerciseId) ?? 0) + 1);
     if (i.passed) r.passed.add(i.exerciseId);
-    let added = 0;
-    for (const a of i.awards) {
-      if (r.awards.has(a.awardKey)) continue;
-      r.awards.set(a.awardKey, { xp: a.xp, source: a.source, occurredAt: a.occurredAt });
-      added += a.xp;
-    }
+    const added = this.addAwards(r, i.awards);
     i.achievements.forEach((id) => r.achievements.add(id));
     r.totalXp += added;
     r.streak = { ...i.streak, longest: Math.max(r.streak.longest, i.streak.longest) };
     r.version++;
     return { status: "ok", xpAdded: added, totalXp: r.totalXp };
+  }
+  private addAwards(r: UserRow, awards: ApplyAttemptInput["awards"]): number {
+    let added = 0;
+    for (const a of awards) {
+      if (r.awards.has(a.awardKey)) continue;
+      r.awards.set(a.awardKey, { xp: a.xp, source: a.source, occurredAt: a.occurredAt });
+      added += a.xp;
+    }
+    return added;
+  }
+  async grant(i: { userId: string; awards: ApplyAttemptInput["awards"]; achievements: string[] }) {
+    const r = this.row(i.userId);
+    const added = this.addAwards(r, i.awards);
+    i.achievements.forEach((id) => r.achievements.add(id));
+    r.totalXp += added;
+    return { xpAdded: added, totalXp: r.totalXp };
   }
   async setTimeZone(userId: string, tz: string) {
     this.row(userId).timeZone = tz;
@@ -84,35 +138,394 @@ export class MemoryProgressStore implements ProgressStore {
 }
 
 export class MemoryProjectStore implements ProjectStore {
-  readonly rows = new Map<string, Project>();
-  readonly serviceRequests: { ownerId: string; projectId: string; summary: string }[] = [];
+  constructor(private readonly db: MemoryDb = new MemoryDb()) {}
+  get rows() {
+    return this.db.projects;
+  }
+  get serviceRequests() {
+    return [...this.db.requests.values()].map((r) => ({
+      ownerId: r.requesterId,
+      projectId: r.projectId,
+      summary: r.summary,
+    }));
+  }
   async createServiceRequest(ownerId: string, projectId: string, summary: string) {
-    this.serviceRequests.push({ ownerId, projectId, summary });
+    const id = uuid();
+    this.db.requests.set(id, {
+      id,
+      projectId,
+      requesterId: ownerId,
+      summary,
+      status: "submitted",
+      assignedExpertId: null,
+      matchedAt: null,
+      completedAt: null,
+      completionEvidence: null,
+      createdAt: new Date().toISOString(),
+    });
   }
   async create(p: Project) {
-    this.rows.set(p.id, structuredClone(p));
+    this.db.projects.set(p.id, clone(p));
   }
   async list(ownerId: string) {
-    return [...this.rows.values()]
+    return [...this.db.projects.values()]
       .filter((p) => p.ownerId === ownerId)
-      .map((p) => structuredClone(p))
+      .map(clone)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
   async get(ownerId: string, id: string) {
-    const p = this.rows.get(id);
-    return p && p.ownerId === ownerId ? structuredClone(p) : null;
+    const p = this.db.projects.get(id);
+    return p && p.ownerId === ownerId ? clone(p) : null;
   }
   async save(p: Project) {
-    const cur = this.rows.get(p.id);
+    const cur = this.db.projects.get(p.id);
     if (!cur || cur.ownerId !== p.ownerId) throw new Error("Project not found");
-    this.rows.set(p.id, structuredClone(p));
+    this.db.projects.set(p.id, clone(p));
+  }
+  async getGithubLink(ownerId: string, projectId: string) {
+    const p = this.db.projects.get(projectId);
+    return {
+      installationRowId:
+        p && p.ownerId === ownerId ? (this.db.projectLinks.get(projectId) ?? null) : null,
+    };
+  }
+  async setRepo(ownerId: string, projectId: string, repo: RepoRef, installationRowId: string) {
+    const p = this.db.projects.get(projectId);
+    if (!p || p.ownerId !== ownerId) throw new Error("Project not found");
+    p.repo = repo;
+    this.db.projectLinks.set(projectId, installationRowId);
+  }
+  async unlinkRepo(githubInstallationId: number, owner: string, name: string) {
+    for (const [projectId, rowId] of this.db.projectLinks) {
+      const inst = this.db.installations.get(rowId);
+      const p = this.db.projects.get(projectId);
+      if (
+        inst?.installationId === githubInstallationId &&
+        p?.repo?.owner === owner &&
+        p.repo.name === name
+      )
+        this.db.projectLinks.delete(projectId);
+    }
   }
 }
 
-export const createMemoryStores = (): Stores & {
-  progress: MemoryProgressStore;
-  projects: MemoryProjectStore;
-} => ({
-  progress: new MemoryProgressStore(),
-  projects: new MemoryProjectStore(),
-});
+export class MemoryGitHubStore implements GitHubStore {
+  constructor(private readonly db: MemoryDb = new MemoryDb()) {}
+  async upsertInstallation(userId: string, info: InstallationInfo) {
+    const existing = [...this.db.installations.values()].find(
+      (i) => i.userId === userId && i.installationId === info.installationId,
+    );
+    const row: InstallationRow = {
+      id: existing?.id ?? uuid(),
+      userId,
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+      ...info,
+    };
+    this.db.installations.set(row.id, row);
+    return clone(row);
+  }
+  async listInstallations(userId: string) {
+    return [...this.db.installations.values()].filter((i) => i.userId === userId).map(clone);
+  }
+  async getInstallation(userId: string, rowId: string) {
+    const r = this.db.installations.get(rowId);
+    return r && r.userId === userId ? clone(r) : null;
+  }
+  async findByGithubId(installationId: number) {
+    return [...this.db.installations.values()]
+      .filter((i) => i.installationId === installationId)
+      .map(clone);
+  }
+  private drop(rowId: string) {
+    this.db.installations.delete(rowId);
+    for (const [pid, rid] of this.db.projectLinks)
+      if (rid === rowId) this.db.projectLinks.delete(pid);
+  }
+  async deleteInstallation(userId: string, rowId: string) {
+    if (this.db.installations.get(rowId)?.userId === userId) this.drop(rowId);
+  }
+  async deleteByGithubId(installationId: number) {
+    for (const r of [...this.db.installations.values()])
+      if (r.installationId === installationId) this.drop(r.id);
+  }
+}
+
+export class MemoryScanStore implements ScanStore {
+  constructor(private readonly db: MemoryDb = new MemoryDb()) {}
+  async createScan(i: { projectId: string; requestedBy: string; now: Date }) {
+    const row: ScanRow = {
+      id: uuid(),
+      projectId: i.projectId,
+      requestedBy: i.requestedBy,
+      commitSha: null,
+      ref: null,
+      status: "running",
+      stats: {},
+      assessment: null,
+      error: null,
+      createdAt: i.now.toISOString(),
+      completedAt: null,
+    };
+    this.db.scans.set(row.id, row);
+    return clone(row);
+  }
+  async completeScan(
+    id: string,
+    p: {
+      commitSha: string | null;
+      ref: string | null;
+      stats: Record<string, unknown>;
+      assessment: ScanRow["assessment"];
+      now: Date;
+    },
+  ) {
+    const s = this.db.scans.get(id)!;
+    Object.assign(s, {
+      status: "complete",
+      commitSha: p.commitSha,
+      ref: p.ref,
+      stats: p.stats,
+      assessment: p.assessment,
+      completedAt: p.now.toISOString(),
+    });
+  }
+  async failScan(id: string, error: string, now: Date) {
+    Object.assign(this.db.scans.get(id)!, {
+      status: "failed",
+      error,
+      completedAt: now.toISOString(),
+    });
+  }
+  async syncFindings(
+    projectId: string,
+    scanId: string,
+    incoming: Parameters<ScanStore["syncFindings"]>[2],
+  ) {
+    const existing = [...this.db.findings.values()].filter((f) => f.projectId === projectId);
+    const { rows, stats } = mergeFindings(projectId, existing, incoming, scanId, new Date(), uuid);
+    for (const r of rows) this.db.findings.set(r.id, r);
+    return stats;
+  }
+  async listFindings(projectId: string) {
+    return [...this.db.findings.values()].filter((f) => f.projectId === projectId).map(clone);
+  }
+  async getFinding(projectId: string, id: string) {
+    const f = this.db.findings.get(id);
+    return f && f.projectId === projectId ? clone(f) : null;
+  }
+  async updateFinding(projectId: string, id: string, p: Parameters<ScanStore["updateFinding"]>[2]) {
+    const f = this.db.findings.get(id);
+    if (!f || f.projectId !== projectId) throw new Error("Finding not found");
+    Object.assign(f, {
+      status: p.status,
+      statusNote: p.statusNote,
+      decidedByUser: p.decidedByUser,
+      resolutionSource: p.resolutionSource,
+      updatedAt: p.now.toISOString(),
+    });
+    return clone(f);
+  }
+  async latestScan(projectId: string) {
+    // ties on createdAt resolve to the most recently inserted row
+    const all = [...this.db.scans.values()].filter(
+      (s) => s.projectId === projectId && s.status === "complete",
+    );
+    const latest = all.reduce<ScanRow | null>(
+      (a, b) => (!a || b.createdAt >= a.createdAt ? b : a),
+      null,
+    );
+    return latest ? clone(latest) : null;
+  }
+  async countScansSince(projectId: string, since: Date) {
+    return [...this.db.scans.values()].filter(
+      (s) => s.projectId === projectId && new Date(s.createdAt) >= since,
+    ).length;
+  }
+  async createVerificationRun(i: Parameters<ScanStore["createVerificationRun"]>[0]) {
+    const row: VerificationRunRow = {
+      id: uuid(),
+      projectId: i.projectId,
+      requestedBy: i.requestedBy,
+      commitSha: i.commitSha,
+      status: i.status,
+      checks: i.checks,
+      createdAt: i.now.toISOString(),
+    };
+    this.db.verifications.push(row);
+    return clone(row);
+  }
+  async latestVerification(projectId: string) {
+    const all = this.db.verifications.filter((r) => r.projectId === projectId);
+    const latest = all.reduce<VerificationRunRow | null>(
+      (a, b) => (!a || b.createdAt >= a.createdAt ? b : a),
+      null,
+    );
+    return latest ? clone(latest) : null;
+  }
+}
+
+export class MemoryRescueStore implements RescueStore {
+  constructor(private readonly db: MemoryDb = new MemoryDb()) {}
+  async isAdmin(userId: string) {
+    return this.db.admins.has(userId);
+  }
+  async upsertExpertApplication(
+    userId: string,
+    i: { displayName: string; headline: string | null; bio: string | null; skills: string[] },
+  ) {
+    const cur = [...this.db.experts.values()].find((e) => e.userId === userId);
+    const row: ExpertRow = cur ?? {
+      id: uuid(),
+      userId,
+      displayName: i.displayName,
+      headline: null,
+      bio: null,
+      skills: [],
+      status: "pending",
+      reviewedBy: null,
+      reviewedAt: null,
+      reviewNote: null,
+      createdAt: new Date().toISOString(),
+    };
+    Object.assign(row, i);
+    // an approved/suspended expert editing their profile keeps their status; a rejected one re-applies
+    if (row.status === "rejected")
+      Object.assign(row, {
+        status: "pending",
+        reviewedBy: null,
+        reviewedAt: null,
+        reviewNote: null,
+      });
+    this.db.experts.set(row.id, row);
+    return clone(row);
+  }
+  async getExpertByUser(userId: string) {
+    const e = [...this.db.experts.values()].find((x) => x.userId === userId);
+    return e ? clone(e) : null;
+  }
+  async getExpert(id: string) {
+    const e = this.db.experts.get(id);
+    return e ? clone(e) : null;
+  }
+  async listExperts(status?: ExpertStatus) {
+    return [...this.db.experts.values()].filter((e) => !status || e.status === status).map(clone);
+  }
+  async reviewExpert(
+    id: string,
+    adminId: string,
+    status: ExpertStatus,
+    note: string | null,
+    now: Date,
+  ) {
+    const e = this.db.experts.get(id)!;
+    Object.assign(e, {
+      status,
+      reviewedBy: adminId,
+      reviewedAt: now.toISOString(),
+      reviewNote: note,
+    });
+    return clone(e);
+  }
+  async getRequest(id: string) {
+    const r = this.db.requests.get(id);
+    return r ? clone(r) : null;
+  }
+  async listRequestsForRequester(userId: string) {
+    return [...this.db.requests.values()].filter((r) => r.requesterId === userId).map(clone);
+  }
+  async listRequestsForExpert(expertId: string) {
+    return [...this.db.requests.values()].filter((r) => r.assignedExpertId === expertId).map(clone);
+  }
+  async listAllRequests(status?: RequestStatus) {
+    return [...this.db.requests.values()].filter((r) => !status || r.status === status).map(clone);
+  }
+  async updateRequest(id: string, patch: Parameters<RescueStore["updateRequest"]>[1]) {
+    const r = this.db.requests.get(id)!;
+    Object.assign(r, patch);
+    return clone(r);
+  }
+  async activeHandoff(requestId: string) {
+    const h = [...this.db.handoffs.values()].find(
+      (x) => x.serviceRequestId === requestId && x.status === "active",
+    );
+    return h ? clone(h) : null;
+  }
+  async listHandoffs(requestId: string) {
+    return [...this.db.handoffs.values()]
+      .filter((x) => x.serviceRequestId === requestId)
+      .map(clone);
+  }
+  async createHandoff(i: Parameters<RescueStore["createHandoff"]>[0]) {
+    if (await this.activeHandoff(i.serviceRequestId))
+      throw new Error("An active handoff already exists");
+    const h: HandoffRow = {
+      id: uuid(),
+      serviceRequestId: i.serviceRequestId,
+      projectId: i.projectId,
+      expertId: i.expertId,
+      scopes: i.scopes,
+      status: "active",
+      grantedAt: i.now.toISOString(),
+      expiresAt: i.expiresAt.toISOString(),
+      revokedAt: null,
+    };
+    this.db.handoffs.set(h.id, h);
+    return clone(h);
+  }
+  async revokeHandoffs(requestId: string, now: Date) {
+    let n = 0;
+    for (const h of this.db.handoffs.values())
+      if (h.serviceRequestId === requestId && h.status === "active") {
+        h.status = "revoked";
+        h.revokedAt = now.toISOString();
+        n++;
+      }
+    return n;
+  }
+  async listJobMilestones(requestId: string) {
+    return [...this.db.jobs.values()]
+      .filter((j) => j.serviceRequestId === requestId)
+      .sort((a, b) => a.position - b.position)
+      .map(clone);
+  }
+  async addJobMilestone(
+    requestId: string,
+    i: { title: string; description: string | null },
+    now: Date,
+  ) {
+    const position = (await this.listJobMilestones(requestId)).length;
+    const row: JobMilestoneRow = {
+      id: uuid(),
+      serviceRequestId: requestId,
+      title: i.title,
+      description: i.description,
+      position,
+      status: "todo",
+      deliverableNote: null,
+      deliverableUrl: null,
+      submittedAt: null,
+      decidedAt: null,
+      decisionNote: null,
+      createdAt: now.toISOString(),
+    };
+    this.db.jobs.set(row.id, row);
+    return clone(row);
+  }
+  async updateJobMilestone(id: string, patch: Parameters<RescueStore["updateJobMilestone"]>[1]) {
+    const j = this.db.jobs.get(id)!;
+    Object.assign(j, patch);
+    return clone(j);
+  }
+}
+
+export function createMemoryStores() {
+  const db = new MemoryDb();
+  return {
+    db,
+    progress: new MemoryProgressStore(db),
+    projects: new MemoryProjectStore(db),
+    github: new MemoryGitHubStore(db),
+    scans: new MemoryScanStore(db),
+    rescue: new MemoryRescueStore(db),
+  } satisfies Stores & { db: MemoryDb };
+}

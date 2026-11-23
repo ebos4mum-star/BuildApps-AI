@@ -1,6 +1,6 @@
 import type { Answer } from "@buildapps/lessons";
 import type { Project, ProjectIntake, ProjectState } from "@buildapps/core";
-import type { AttemptOutcome, Dashboard, LessonPayload } from "@buildapps/server";
+import type { AttemptOutcome, Dashboard, LessonPayload } from "@buildapps/server/types";
 
 export type { AttemptOutcome, Dashboard, LessonPayload, Project, ProjectIntake };
 
