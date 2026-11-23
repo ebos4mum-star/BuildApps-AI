@@ -44,12 +44,29 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Resolving "latest" calls the GitHub API from a shared runner IP and is occasionally rate limited
+      # (even when authenticated), so retry up to 3 times with a pause between attempts.
       - uses: supabase/setup-cli@v1
+        id: cli1
+        continue-on-error: true
         with:
           version: latest
-        env:
-          # authenticated GitHub API calls avoid the unauthenticated rate limit when resolving "latest"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Wait before retrying CLI setup
+        if: steps.cli1.outcome == 'failure'
+        run: sleep 45
+      - uses: supabase/setup-cli@v1
+        id: cli2
+        if: steps.cli1.outcome == 'failure'
+        continue-on-error: true
+        with:
+          version: latest
+      - name: Wait before retrying CLI setup
+        if: steps.cli1.outcome == 'failure' && steps.cli2.outcome == 'failure'
+        run: sleep 90
+      - uses: supabase/setup-cli@v1
+        if: steps.cli1.outcome == 'failure' && steps.cli2.outcome == 'failure'
+        with:
+          version: latest
       - name: Start local Supabase (Docker, no cloud resources)
         # retried: shared runners occasionally have a host port already bound
         run: |
