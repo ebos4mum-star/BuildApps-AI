@@ -1,0 +1,9 @@
+# Lesson content intentionally contains fake secrets to teach spotting them.
+title = "BuildApps AI gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Educational lesson content with placeholder keys"
+paths = ['''packages/lessons/src/content/.*''']

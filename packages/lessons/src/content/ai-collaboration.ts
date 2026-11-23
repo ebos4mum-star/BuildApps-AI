@@ -119,7 +119,7 @@ export const aiCollaboration: Lesson[] = [
         filename: "components/Checkout.tsx",
         lines: [
           { id: "l1", label: "import Stripe from 'stripe';" },
-          { id: "l2", label: "const stripe = new Stripe('sk_live_51Hxxxxxxxx');" },
+          { id: "l2", label: "const stripe = new Stripe('sk_live_EXAMPLE_NOT_A_REAL_KEY');" },
           { id: "l3", label: "export function Checkout() {" },
           { id: "l4", label: "  return <button onClick={pay}>Pay</button>;" },
           { id: "l5", label: "}" },
