@@ -11,3 +11,13 @@ node e2e/play-all-lessons.js /tmp                                        # needs
 ```
 
 `DEV_MEMORY_BACKEND` is refused when `NODE_ENV=production`.
+
+## Stage 3-5 journey (`batch2-flows.js`)
+
+Three users (owner, expert, admin) in separate browser contexts: GitHub connect/link/scan, finding decisions,
+rescan reopen/keep, verification (runtime verification shown as unavailable), expert vetting, manual match,
+scoped handoff, revision + resubmission, completion, disconnect. Needs a fresh dev server:
+
+```
+node e2e/batch2-flows.js /tmp
+```

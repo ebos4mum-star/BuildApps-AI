@@ -50,6 +50,13 @@ export function GithubCard({ ws, reload }: { ws: WorkspaceView; reload: () => Pr
       const r = await fn();
       if (after) setMsg(after(r));
       await reload();
+      // connections may have changed (e.g. disconnected): never show a stale connection or repo list
+      const s = await api.githubStatus();
+      setStatus(s);
+      setConn((cur) =>
+        s.connections.some((c) => c.id === cur) ? cur : (s.connections[0]?.id ?? ""),
+      );
+      setRepos(null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed");
     } finally {
