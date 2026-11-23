@@ -4,3 +4,4 @@ export * from "./projects";
 export * from "./memory-store";
 export * from "./supabase-store";
 export * from "./dashboard";
+export * from "./auth";

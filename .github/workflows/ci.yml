@@ -34,6 +34,26 @@ jobs:
       - run: bash supabase/tests/run.sh
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+  supabase-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start local Supabase (Docker, no cloud resources)
+        run: supabase start -x studio,imgproxy,vector,edge-runtime,logflare,realtime,storage-api
+      - name: Run real-Supabase integration tests
+        run: |
+          eval "$(supabase status -o env | sed 's/^/export /')"
+          export SUPABASE_URL="$API_URL" SUPABASE_ANON_KEY="$ANON_KEY" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+          pnpm --filter @buildapps/server test:integration
   secret-scan:
     runs-on: ubuntu-latest
     steps:

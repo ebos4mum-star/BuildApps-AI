@@ -7,7 +7,8 @@
   "types": "src/index.ts",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "vitest run src/supabase.integration.test.ts"
   },
   "dependencies": {
     "@buildapps/core": "workspace:*",

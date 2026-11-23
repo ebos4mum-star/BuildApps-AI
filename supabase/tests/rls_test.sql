@@ -114,5 +114,15 @@ select pg_temp.expect_fail($$insert into public.project_milestones (project_id, 
 select pg_temp.expect_fail($$insert into public.projects (owner_id, name, journey) values ('aaaaaaaa-0000-0000-0000-000000000001','r','rescue')$$, 'rescue without repo/recovery');
 select pg_temp.expect_fail($$insert into public.xp_awards (user_id, award_key, source, xp, occurred_at) values ('aaaaaaaa-0000-0000-0000-000000000001','exercise:e1','exercise',5,now())$$, 'duplicate award key');
 
+-- future tables must NOT be reachable by client roles by default
+reset role;
+create table public.zz_future_table (id int);
+do $$ begin
+  assert not has_table_privilege('authenticated', 'public.zz_future_table', 'select'), 'default grants leaked to authenticated';
+  assert not has_table_privilege('anon', 'public.zz_future_table', 'select'), 'default grants leaked to anon';
+  assert has_table_privilege('service_role', 'public.zz_future_table', 'select'), 'service_role default lost';
+end $$;
+drop table public.zz_future_table;
+
 \o
 \echo ALL DB TESTS PASSED

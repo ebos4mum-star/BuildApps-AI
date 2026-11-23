@@ -1,5 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
-import { createMemoryStores, createSupabaseStores, type Stores } from "@buildapps/server";
+import {
+  createMemoryStores,
+  createSupabaseStores,
+  verifyAccessToken,
+  type Stores,
+} from "@buildapps/server";
 
 /**
  * Backend selection (server only).
@@ -34,8 +39,5 @@ export async function verifyToken(token: string): Promise<string | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anon) throw new Error("Supabase is not configured (see .env.example)");
-  const { data, error } = await createClient(url, anon, {
-    auth: { persistSession: false },
-  }).auth.getUser(token);
-  return error || !data.user ? null : data.user.id;
+  return verifyAccessToken(url, anon, token);
 }
