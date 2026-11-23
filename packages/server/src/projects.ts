@@ -109,16 +109,25 @@ export async function askForHumanHelp(
   store: ProjectStore,
   ownerId: string,
   id: string,
+  summary: string,
   now = new Date(),
 ) {
   const p = await load(store, ownerId, id);
+  const text = summary.trim();
+  if (text.length < 10 || text.length > 2000)
+    throw new ProjectError("invalid", "Describe what you need help with (10-2000 characters)");
+  let next: Project;
   try {
-    const next = requestHumanHelp(p, now);
-    await store.save(next);
-    return next;
+    next = requestHumanHelp(p, now);
   } catch (e) {
     throw new ProjectError("invalid", e instanceof Error ? e.message : "Invalid");
   }
+  // Only the first request creates a queue entry; repeats are idempotent.
+  if (!p.recovery?.humanHelpRequested) {
+    await store.createServiceRequest(ownerId, id, text);
+    await store.save(next);
+  }
+  return next;
 }
 
 export const listUserProjects = (store: ProjectStore, ownerId: string) => store.list(ownerId);

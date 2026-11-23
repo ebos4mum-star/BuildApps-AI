@@ -1,5 +1,3 @@
-import type { Lesson } from "./types";
-
 /**
  * Pure lesson-player state, shared by web and mobile. Wrong answers are never punished with lost
  * lives: the exercise simply returns later in the lesson so the learner practises it again.
@@ -15,7 +13,10 @@ export interface SessionState {
   status: "answering" | "complete";
 }
 
-export function startSession(lesson: Lesson, alreadyPassed: readonly string[] = []): SessionState {
+export function startSession(
+  lesson: { id: string; exercises: readonly { id: string }[] },
+  alreadyPassed: readonly string[] = [],
+): SessionState {
   const done = new Set(alreadyPassed);
   const queue = lesson.exercises.map((e) => e.id).filter((id) => !done.has(id));
   return {

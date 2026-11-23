@@ -224,9 +224,20 @@ describe("project service", () => {
     const { projects } = createMemoryStores();
     const p = await createUserProject(projects, "alice", intake);
     expect((await advanceProjectRecovery(projects, "alice", p.id)).recovery?.stage).toBe("triage");
-    expect((await askForHumanHelp(projects, "alice", p.id)).recovery?.humanHelpRequested).toBe(
-      true,
-    );
+    const need = "Build fails after AI edits, need an expert";
+    expect(
+      (await askForHumanHelp(projects, "alice", p.id, need)).recovery?.humanHelpRequested,
+    ).toBe(true);
+    await askForHumanHelp(projects, "alice", p.id, need);
+    expect(projects.serviceRequests).toEqual([
+      { ownerId: "alice", projectId: p.id, summary: need },
+    ]); // not duplicated
+    await expect(askForHumanHelp(projects, "alice", p.id, "hi")).rejects.toMatchObject({
+      code: "invalid",
+    });
+    await expect(askForHumanHelp(projects, "bob", p.id, need)).rejects.toMatchObject({
+      code: "not_found",
+    });
     await expect(
       createUserProject(projects, "alice", { ...intake, repoUrl: "https://evil.example/x/y" }),
     ).rejects.toMatchObject({ code: "invalid" });
