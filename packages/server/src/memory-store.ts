@@ -1,6 +1,16 @@
 import { calculateProgress, INITIAL_STREAK, type Project, type RepoRef } from "@buildapps/core";
 import type { InstallationInfo } from "@buildapps/github/types";
 import { mergeFindings } from "./merge-findings";
+import { MemoryPublishingStore } from "./publishing-memory-store";
+import type {
+  ActionRow,
+  ClaimRow,
+  FeedbackRow,
+  PublishEventRow,
+  PublishTargetRow,
+  ReleaseRow,
+  SubmissionRow,
+} from "./publishing-types";
 import type {
   EventRole,
   RequestEventRow,
@@ -56,6 +66,13 @@ export class MemoryDb {
   handoffs = new Map<string, HandoffRow>();
   jobs = new Map<string, JobMilestoneRow>();
   events: RequestEventRow[] = [];
+  pubTargets = new Map<string, PublishTargetRow>();
+  pubClaims = new Map<string, ClaimRow>();
+  pubReleases = new Map<string, ReleaseRow>();
+  pubSubmissions = new Map<string, SubmissionRow>();
+  pubFeedback = new Map<string, FeedbackRow>();
+  pubActions = new Map<string, ActionRow>();
+  pubEvents: PublishEventRow[] = [];
 }
 
 /** In-memory stores with the same integrity semantics as the SQL (idempotent keys, versioning). */
@@ -152,16 +169,22 @@ export class MemoryProjectStore implements ProjectStore {
       summary: r.summary,
     }));
   }
-  async hasOpenServiceRequest(ownerId: string, projectId: string) {
+  async hasOpenServiceRequest(ownerId: string, projectId: string, kind?: "rescue" | "publishing") {
     return [...this.db.requests.values()].some(
       (r) =>
         r.requesterId === ownerId &&
         r.projectId === projectId &&
+        (!kind || r.kind === kind) &&
         ["submitted", "matched", "in_progress", "delivered"].includes(r.status),
     );
   }
 
-  async createServiceRequest(ownerId: string, projectId: string, summary: string) {
+  async createServiceRequest(
+    ownerId: string,
+    projectId: string,
+    summary: string,
+    opts: { kind?: "rescue" | "publishing"; publishTargetId?: string | null } = {},
+  ) {
     const id = uuid();
     this.db.requests.set(id, {
       id,
@@ -173,6 +196,8 @@ export class MemoryProjectStore implements ProjectStore {
       matchedAt: null,
       completedAt: null,
       completionEvidence: null,
+      kind: opts.kind ?? "rescue",
+      publishTargetId: opts.publishTargetId ?? null,
       createdAt: new Date().toISOString(),
     });
     this.db.events.push({
@@ -184,6 +209,7 @@ export class MemoryProjectStore implements ProjectStore {
       detail: {},
       createdAt: new Date().toISOString(),
     });
+    return id;
   }
   async create(p: Project) {
     this.db.projects.set(p.id, clone(p));
@@ -569,5 +595,6 @@ export function createMemoryStores() {
     github: new MemoryGitHubStore(db),
     scans: new MemoryScanStore(db),
     rescue: new MemoryRescueStore(db),
+    publishing: new MemoryPublishingStore(db),
   } satisfies Stores & { db: MemoryDb };
 }

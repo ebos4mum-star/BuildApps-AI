@@ -9,6 +9,7 @@ import type {
 } from "@buildapps/core";
 import { INITIAL_STREAK } from "@buildapps/core";
 import { SupabaseGitHubStore, SupabaseRescueStore, SupabaseScanStore } from "./supabase-store2";
+import { SupabasePublishingStore } from "./supabase-store3";
 import type {
   ApplyAttemptInput,
   ApplyAttemptResult,
@@ -314,21 +315,34 @@ export class SupabaseProjectStore implements ProjectStore {
     fail("unlink repo", e2);
   }
 
-  async hasOpenServiceRequest(ownerId: string, projectId: string) {
-    const { count, error } = await this.db
+  async hasOpenServiceRequest(ownerId: string, projectId: string, kind?: "rescue" | "publishing") {
+    let q = this.db
       .from("service_requests")
       .select("id", { count: "exact", head: true })
       .eq("requester_id", ownerId)
       .eq("project_id", projectId)
       .in("status", ["submitted", "matched", "in_progress", "delivered"]);
+    if (kind) q = q.eq("kind", kind);
+    const { count, error } = await q;
     fail("check open requests", error);
     return (count ?? 0) > 0;
   }
 
-  async createServiceRequest(ownerId: string, projectId: string, summary: string) {
+  async createServiceRequest(
+    ownerId: string,
+    projectId: string,
+    summary: string,
+    opts: { kind?: "rescue" | "publishing"; publishTargetId?: string | null } = {},
+  ) {
     const { data, error } = await this.db
       .from("service_requests")
-      .insert({ project_id: projectId, requester_id: ownerId, summary })
+      .insert({
+        project_id: projectId,
+        requester_id: ownerId,
+        summary,
+        kind: opts.kind ?? "rescue",
+        publish_target_id: opts.publishTargetId ?? null,
+      })
       .select("id")
       .single();
     fail("create service request", error);
@@ -340,6 +354,7 @@ export class SupabaseProjectStore implements ProjectStore {
       detail: {},
     });
     fail("log request event", ev.error);
+    return data.id as string;
   }
 
   async save(p: Project) {
@@ -376,4 +391,5 @@ export const createSupabaseStores = (serviceClient: SupabaseClient): Stores => (
   github: new SupabaseGitHubStore(serviceClient),
   scans: new SupabaseScanStore(serviceClient),
   rescue: new SupabaseRescueStore(serviceClient),
+  publishing: new SupabasePublishingStore(serviceClient),
 });

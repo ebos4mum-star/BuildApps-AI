@@ -12,11 +12,12 @@
   },
   "dependencies": {
     "@buildapps/core": "workspace:*",
+    "@buildapps/github": "workspace:*",
     "@buildapps/lessons": "workspace:*",
-    "@supabase/supabase-js": "^2.45.0",
-    "zod": "^3.23.0",
+    "@buildapps/publishing": "workspace:*",
     "@buildapps/scanner": "workspace:*",
-    "@buildapps/github": "workspace:*"
+    "@supabase/supabase-js": "^2.45.0",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@buildapps/config": "workspace:*",

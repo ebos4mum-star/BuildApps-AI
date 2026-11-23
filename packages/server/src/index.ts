@@ -14,3 +14,6 @@ export * from "./scan-service";
 export * from "./workspace";
 export * from "./experts";
 export * from "./stats";
+export * from "./publishing-types";
+export * from "./publishing-memory-store";
+export * from "./publishing-service";

@@ -7,6 +7,16 @@ export type { Dashboard, LessonPayload } from "./dashboard";
 export type { AttemptOutcome } from "./attempts";
 export type { WorkspaceView } from "./workspace";
 export type { RequestView, ExpertWorkspaceView } from "./experts";
+export type { PublishingView, TargetView, ReleaseView } from "./publishing-service";
+export type {
+  ActionRow,
+  ClaimRow,
+  FeedbackRow,
+  PublishEventRow,
+  PublishTargetRow,
+  ReleaseRow,
+  SubmissionRow,
+} from "./publishing-types";
 export type {
   EventRole,
   RequestEventRow,

@@ -102,6 +102,8 @@ const toRequest = (r: R): ServiceRequestRow => ({
   matchedAt: r.matched_at,
   completedAt: r.completed_at,
   completionEvidence: r.completion_evidence,
+  kind: r.kind ?? "rescue",
+  publishTargetId: r.publish_target_id ?? null,
   createdAt: r.created_at,
 });
 const toHandoff = (r: R): HandoffRow => ({

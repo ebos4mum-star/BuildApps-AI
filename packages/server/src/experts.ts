@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { nowOf, type Deps } from "./deps";
 import { WorkspaceError } from "./errors";
+import { buildPublishingView, type PublishingView } from "./publishing-service";
 import {
   HANDOFF_SCOPES,
   type EventRole,
@@ -410,6 +411,8 @@ export interface ExpertWorkspaceView {
   scan?: ScanRow | null;
   findings?: FindingRow[];
   verification?: VerificationRunRow | null;
+  /** Release readiness + history (view_publishing). Never includes store credentials: none are collected. */
+  publishing?: PublishingView;
   jobs: JobMilestoneRow[];
 }
 /**
@@ -449,6 +452,8 @@ export async function expertWorkspace(
   if (can("view_findings")) out.findings = await d.stores.scans.listFindings(r.projectId);
   if (can("view_verification"))
     out.verification = await d.stores.scans.latestVerification(r.projectId);
+  if (can("view_publishing"))
+    out.publishing = await buildPublishingView(d, r.requesterId, r.projectId);
   return out;
 }
 

@@ -169,6 +169,9 @@ export interface ServiceRequestRow {
   matchedAt: string | null;
   completedAt: string | null;
   completionEvidence: Record<string, unknown> | null;
+  /** rescue = fix a stuck project; publishing = help getting an app published (manual tracking only). */
+  kind: "rescue" | "publishing";
+  publishTargetId: string | null;
   createdAt: string;
 }
 export const HANDOFF_SCOPES = [
@@ -176,6 +179,7 @@ export const HANDOFF_SCOPES = [
   "view_scans",
   "view_findings",
   "view_verification",
+  "view_publishing",
 ] as const;
 export type HandoffScope = (typeof HANDOFF_SCOPES)[number];
 export interface HandoffRow {

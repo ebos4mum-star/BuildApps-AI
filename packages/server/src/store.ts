@@ -1,5 +1,6 @@
 import type { Project, RepoRef, StreakState } from "@buildapps/core";
 import type { GitHubStore, RescueStore, ScanStore } from "./batch2-types";
+import type { PublishingStore } from "./publishing-types";
 
 /** Everything the attempt service needs to know about a user, loaded in one go. */
 export interface ProgressState {
@@ -51,9 +52,18 @@ export interface ProjectStore {
   /** Persists state/milestones/recovery of an existing project owned by `project.ownerId`. */
   save(project: Project): Promise<void>;
   /** Human Developer Rescue intake: queued for manual matching by the team. */
-  createServiceRequest(ownerId: string, projectId: string, summary: string): Promise<void>;
+  createServiceRequest(
+    ownerId: string,
+    projectId: string,
+    summary: string,
+    opts?: { kind?: "rescue" | "publishing"; publishTargetId?: string | null },
+  ): Promise<string>;
   /** True while a help request for this project is submitted, matched, in progress or delivered. */
-  hasOpenServiceRequest(ownerId: string, projectId: string): Promise<boolean>;
+  hasOpenServiceRequest(
+    ownerId: string,
+    projectId: string,
+    kind?: "rescue" | "publishing",
+  ): Promise<boolean>;
   /** GitHub App installation row (not the GitHub id) this project is linked to, if any. */
   getGithubLink(ownerId: string, projectId: string): Promise<{ installationRowId: string | null }>;
   /** Links a project to one repository inside a connected installation. */
@@ -73,4 +83,5 @@ export interface Stores {
   github: GitHubStore;
   scans: ScanStore;
   rescue: RescueStore;
+  publishing: PublishingStore;
 }

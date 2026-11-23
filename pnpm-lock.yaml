@@ -251,6 +251,9 @@ importers:
       '@buildapps/lessons':
         specifier: workspace:*
         version: link:../lessons
+      '@buildapps/publishing':
+        specifier: workspace:*
+        version: link:../publishing
       '@buildapps/scanner':
         specifier: workspace:*
         version: link:../scanner

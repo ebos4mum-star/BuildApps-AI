@@ -120,8 +120,8 @@ export async function askForHumanHelp(
     throw new ProjectError("invalid", "Restore this project before asking for help");
   // One open request per project: repeats are idempotent. Any journey may ask; rescue projects also
   // record it in their recovery workflow.
-  if (await store.hasOpenServiceRequest(ownerId, id)) return p;
-  await store.createServiceRequest(ownerId, id, text);
+  if (await store.hasOpenServiceRequest(ownerId, id, "rescue")) return p;
+  await store.createServiceRequest(ownerId, id, text, { kind: "rescue" });
   if (!p.recovery) return p;
   const next = requestHumanHelp(p, now);
   await store.save(next);
