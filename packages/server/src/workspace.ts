@@ -81,7 +81,7 @@ export async function getWorkspace(
     }),
     helpRequest:
       requests
-        .filter((r) => r.projectId === projectId && r.status !== "cancelled")
+        .filter((r) => r.projectId === projectId && r.kind === "rescue" && r.status !== "cancelled")
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null,
   };
 }

@@ -1,6 +1,8 @@
 import type { Answer } from "@buildapps/lessons";
 import type { Project, ProjectIntake, ProjectState } from "@buildapps/core";
+import type { ActionStatus, Platform, ReasonCategory, ReviewOutcome } from "@buildapps/publishing";
 import type {
+  ActionRow,
   AttemptOutcome,
   Dashboard,
   ExpertRow,
@@ -13,6 +15,9 @@ import type {
   InstallationRow,
   JobMilestoneRow,
   LessonPayload,
+  PublishingView,
+  PublishTargetRow,
+  ReleaseRow,
   RequestEventRow,
   RequestStatus,
   RequestView,
@@ -21,6 +26,7 @@ import type {
 } from "@buildapps/server/types";
 
 export type {
+  ActionRow,
   AttemptOutcome,
   Dashboard,
   ExpertRow,
@@ -35,6 +41,9 @@ export type {
   LessonPayload,
   Project,
   ProjectIntake,
+  PublishingView,
+  PublishTargetRow,
+  ReleaseRow,
   RequestEventRow,
   RequestStatus,
   RequestView,
@@ -125,7 +134,90 @@ export function createApiClient(opts: ApiClientOptions) {
     return json;
   }
   const enc = encodeURIComponent;
+  const pub = (p: string) => `/api/publishing${p}`;
   return {
+    // ---- Publishing Center (owner side; manual tracking - nothing is submitted by BuildApps) ----
+    publishing: {
+      view: (projectId: string) => call<PublishingView>("GET", pub(`/projects/${enc(projectId)}`)),
+      addTarget: (projectId: string, platform: Platform) =>
+        call<{ target: PublishTargetRow }>("POST", pub(`/projects/${enc(projectId)}/targets`), {
+          platform,
+        }),
+      saveMetadata: (targetId: string, metadata: Record<string, unknown>) =>
+        call<{ target: PublishTargetRow }>(
+          "PUT",
+          pub(`/targets/${enc(targetId)}/metadata`),
+          metadata,
+        ),
+      claim: (
+        targetId: string,
+        key: string,
+        kind: "self_reported" | "not_applicable",
+        note: string,
+      ) =>
+        call<{ removed: boolean }>("PUT", pub(`/targets/${enc(targetId)}/claims/${enc(key)}`), {
+          kind,
+          note,
+        }),
+      removeClaim: (targetId: string, key: string) =>
+        call<{ removed: boolean }>("DELETE", pub(`/targets/${enc(targetId)}/claims/${enc(key)}`)),
+      createRelease: (targetId: string, version: string, buildNumber?: string, notes?: string) =>
+        call<{ release: ReleaseRow }>("POST", pub(`/targets/${enc(targetId)}/releases`), {
+          version,
+          ...(buildNumber ? { buildNumber } : {}),
+          ...(notes ? { notes } : {}),
+        }),
+      markReady: (releaseId: string) =>
+        call<{ release: ReleaseRow }>("POST", pub(`/releases/${enc(releaseId)}/ready`), {}),
+      unready: (releaseId: string) =>
+        call<{ release: ReleaseRow }>("POST", pub(`/releases/${enc(releaseId)}/unready`), {}),
+      recordSubmission: (releaseId: string, storeReference?: string) =>
+        call<{ alreadyRecorded: boolean }>(
+          "POST",
+          pub(`/releases/${enc(releaseId)}/submitted`),
+          storeReference ? { storeReference } : {},
+        ),
+      markInReview: (releaseId: string) =>
+        call<{ release: ReleaseRow }>("POST", pub(`/releases/${enc(releaseId)}/in-review`), {}),
+      recordOutcome: (
+        releaseId: string,
+        outcome: ReviewOutcome,
+        message: string,
+        reasonCategory?: ReasonCategory,
+        guidelineRef?: string,
+      ) =>
+        call<{ release: ReleaseRow }>("POST", pub(`/releases/${enc(releaseId)}/outcome`), {
+          outcome,
+          message,
+          ...(reasonCategory ? { reasonCategory } : {}),
+          ...(guidelineRef ? { guidelineRef } : {}),
+        }),
+      resubmit: (releaseId: string, storeReference?: string) =>
+        call<{ alreadyRecorded: boolean }>(
+          "POST",
+          pub(`/releases/${enc(releaseId)}/resubmitted`),
+          storeReference ? { storeReference } : {},
+        ),
+      markReleased: (releaseId: string) =>
+        call<{ release: ReleaseRow }>("POST", pub(`/releases/${enc(releaseId)}/released`), {}),
+      withdraw: (releaseId: string) =>
+        call<{ release: ReleaseRow }>("POST", pub(`/releases/${enc(releaseId)}/withdraw`), {}),
+      addAction: (releaseId: string, title: string, detail?: string) =>
+        call<{ action: ActionRow }>("POST", pub(`/releases/${enc(releaseId)}/actions`), {
+          title,
+          ...(detail ? { detail } : {}),
+        }),
+      updateAction: (actionId: string, status: ActionStatus, note?: string) =>
+        call<{ action: ActionRow }>("PATCH", pub(`/actions/${enc(actionId)}`), {
+          status,
+          ...(note ? { note } : {}),
+        }),
+      requestAssistance: (projectId: string, summary: string, targetId?: string) =>
+        call<{ alreadyOpen: boolean }>("POST", pub(`/projects/${enc(projectId)}/assistance`), {
+          summary,
+          ...(targetId ? { targetId } : {}),
+        }),
+    },
     // ---- GitHub connection (read-only GitHub App) ----
     githubStatus: () =>
       call<{ available: boolean; connections: InstallationRow[] }>("GET", "/api/github"),

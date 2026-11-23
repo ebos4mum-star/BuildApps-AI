@@ -4,15 +4,9 @@ import { JOURNEY_INFO } from "@/components/Journeys";
 import { FindingsPanel } from "@/components/workspace/FindingsPanel";
 import { GithubCard } from "@/components/workspace/GithubCard";
 import { HelpPanel } from "@/components/workspace/HelpPanel";
+import { PublishingPanel } from "@/components/publishing/PublishingPanel";
 import { VerificationPanel } from "@/components/workspace/VerificationPanel";
 import { api, type WorkspaceView } from "@/lib/api-types";
-
-const ROADMAP = [
-  [
-    "Publishing Center",
-    "App Store and Google Play submission help ($25 per app / year). Not available yet.",
-  ],
-];
 
 export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -150,6 +144,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       />
       <VerificationPanel ws={ws} />
       <HelpPanel ws={ws} reload={reload} draft={draft} onDraftUsed={() => setDraft(null)} />
+      <PublishingPanel projectId={p.id} />
       <div className="stats">
         {p.state === "active" && (
           <>
@@ -187,18 +182,6 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             Archive
           </button>
         )}
-      </div>
-      <h2>Coming next</h2>
-      <div className="grid3">
-        {ROADMAP.map(([t, d]) => (
-          <div className="card" key={t} style={{ opacity: 0.8 }}>
-            <strong>{t}</strong>
-            <p className="muted" style={{ margin: ".2rem 0 0" }}>
-              {d}
-            </p>
-            <span className="badge">Not available yet</span>
-          </div>
-        ))}
       </div>
     </>
   );

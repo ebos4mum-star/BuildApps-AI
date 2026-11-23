@@ -278,6 +278,45 @@ function JobView({ id, onChange }: { id: string; onChange: () => Promise<void> }
               ))}
             </ul>
           )}
+          {w.publishing && (
+            <div data-testid="expert-publishing">
+              <h3>Publishing readiness</h3>
+              {w.publishing.targets.length === 0 && (
+                <p className="muted">No publishing targets yet.</p>
+              )}
+              {w.publishing.targets.map((t) => (
+                <div className="subcard" key={t.target.id}>
+                  <strong>{t.target.platform.replace(/_/g, " ")}</strong>{" "}
+                  <span className={`badge ${t.readiness.readyToSubmit ? "ok" : "warn"}`}>
+                    {t.readiness.readyToSubmit ? "ready to submit" : "not ready"}
+                  </span>
+                  <div className="muted">
+                    {t.readiness.requiredVerified} verified - {t.readiness.requiredSelfReported}{" "}
+                    self-reported - {t.readiness.counts.missing} missing -{" "}
+                    {t.readiness.counts.blocked} blocked
+                  </div>
+                  <ul className="checks">
+                    {t.readiness.results
+                      .filter((r) => r.status === "missing" || r.status === "blocked")
+                      .map((r) => (
+                        <li key={r.key}>
+                          {r.title}: <strong>{r.status}</strong>{" "}
+                          <span className="muted">{r.reason}</span>
+                        </li>
+                      ))}
+                  </ul>
+                  {t.releases.map((rv) => (
+                    <div key={rv.release.id} className="muted">
+                      v{rv.release.version}: {rv.release.status.replace("_", " ")} (reported by the
+                      owner)
+                      {rv.actions.filter((a) => a.status !== "done").length > 0 &&
+                        ` - ${rv.actions.filter((a) => a.status !== "done").length} open task(s)`}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </>
       ) : (
         <p className="muted">{wErr ?? "No access granted."}</p>

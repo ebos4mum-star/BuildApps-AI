@@ -6,6 +6,7 @@ export default {
     "@buildapps/server",
     "@buildapps/github",
     "@buildapps/scanner",
+    "@buildapps/publishing",
     "@buildapps/api-client",
   ],
   poweredByHeader: false,

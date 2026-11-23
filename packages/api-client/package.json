@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@buildapps/core": "workspace:*",
-    "@buildapps/lessons": "workspace:*"
+    "@buildapps/lessons": "workspace:*",
+    "@buildapps/publishing": "workspace:*"
   },
   "devDependencies": {
     "@buildapps/config": "workspace:*",
