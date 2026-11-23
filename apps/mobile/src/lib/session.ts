@@ -7,7 +7,7 @@ declare const process: { env: Record<string, string | undefined> };
 
 // Same Supabase project and API as the website => one account, one progress history.
 export const supabase = createClient(
-  process.env.EXPO_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:54321",
+  process.env.EXPO_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:14321",
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "missing-anon-key",
   {
     auth: {

@@ -1,8 +1,21 @@
 # Local-development configuration for `supabase start` (requires Docker). No cloud resources.
+#
+# Ports are deliberately BELOW Linux's ephemeral range (32768-60999). The Supabase defaults (54321-54329)
+# sit inside it, so an outgoing connection can transiently hold one as its source port and make
+# `supabase start` fail with "address already in use" (seen intermittently on CI runners).
 [api]
-port = 54321
+port = 14321
 [db]
-port = 54322
+port = 14322
+shadow_port = 14320
+[db.pooler]
+port = 14329
+[studio]
+port = 14323
+[inbucket]
+port = 14324
+[analytics]
+port = 14327
 [auth]
 site_url = "http://localhost:3000"
 additional_redirect_urls = ["http://localhost:3000/auth/callback"]
