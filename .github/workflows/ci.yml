@@ -47,6 +47,9 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
+        env:
+          # authenticated GitHub API calls avoid the unauthenticated rate limit when resolving "latest"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Start local Supabase (Docker, no cloud resources)
         run: supabase start -x studio,imgproxy,vector,edge-runtime,logflare,realtime,storage-api
       - name: Run real-Supabase integration tests
