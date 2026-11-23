@@ -2,8 +2,20 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { curriculum } from "@buildapps/lessons";
 import { FakeGitHubGateway } from "@buildapps/github";
+import { RELEASE_STATUSES, RELEASE_TRANSITIONS } from "@buildapps/publishing";
 import {
   adminListExperts,
+  addTarget,
+  createRelease,
+  markReleased,
+  markReleaseReady,
+  recordResubmission,
+  recordReviewOutcome,
+  recordSubmission,
+  requestPublishingAssistance,
+  saveMetadata,
+  setRequirementClaim,
+  updateCorrectiveAction,
   adminMatch,
   adminReviewExpert,
   advanceProjectRecovery,
@@ -16,6 +28,7 @@ import {
   disconnectGithub,
   expertWorkspace,
   getDashboard,
+  getPublishing,
   getWorkspace,
   grantHandoff,
   linkProjectRepo,
@@ -437,4 +450,252 @@ describe.skipIf(!enabled)("real Supabase integration", () => {
     ).not.toBeNull();
     expect((await expertUser.client.from("admins").select("*")).error).not.toBeNull();
   }, 40_000);
+
+  // ---------- Stage 6: Publishing Center on the real stack ----------
+  async function publishingProject(
+    userId: string,
+    repo: "healthy-app" | "stuck-app" = "healthy-app",
+  ) {
+    const { deps, p } = await connectedRescue(userId, repo);
+    await runVerification(deps, userId, p.id);
+    return { deps, p };
+  }
+  const FILL_META = {
+    appName: "Habit Hero",
+    description:
+      "A habit tracker for students that rewards consistency with streaks, quests and friendly reminders.",
+    category: "Productivity",
+    supportUrl: "https://example.com/support",
+    privacyPolicyUrl: "https://example.com/privacy",
+    collectsUserData: true,
+    hasLogin: true,
+    packageName: "com.example.habit",
+  };
+  const GOOGLE_CLAIMS = [
+    "privacy.data-disclosure",
+    "assets.icon",
+    "assets.screenshots",
+    "google.developer-account",
+    "google.signing",
+    "google.data-safety",
+    "google.content-rating",
+    "google.store-requirements",
+  ];
+
+  it("publishing: full lifecycle through the real database, with RLS and an immutable audit trail", async () => {
+    const owner = await makeUser();
+    const stranger = await makeUser();
+    const { deps, p } = await publishingProject(owner.id);
+    const target = await addTarget(deps, owner.id, p.id, "google_play");
+    expect((await addTarget(deps, owner.id, p.id, "google_play")).id).toBe(target.id); // idempotent upsert
+    await saveMetadata(deps, owner.id, target.id, FILL_META);
+    for (const k of GOOGLE_CLAIMS)
+      await setRequirementClaim(deps, owner.id, target.id, k, {
+        kind: "self_reported",
+        note: "Completed in Play Console",
+      });
+    const rel = await createRelease(deps, owner.id, target.id, {
+      version: "1.0.0",
+      buildNumber: "42",
+    });
+    await expect(
+      createRelease(deps, owner.id, target.id, { version: "1.0.0" }),
+    ).rejects.toMatchObject({ code: "conflict" });
+
+    await markReleaseReady(deps, owner.id, rel.id);
+    const first = await recordSubmission(deps, owner.id, rel.id, { storeReference: "build 42" });
+    const again = await recordSubmission(deps, owner.id, rel.id);
+    expect([first.alreadyRecorded, again.alreadyRecorded]).toEqual([false, true]);
+    expect(await stores.publishing.listSubmissions(rel.id)).toHaveLength(1);
+
+    const rejected = await recordReviewOutcome(deps, owner.id, rel.id, {
+      outcome: "rejected",
+      reasonCategory: "privacy",
+      message: "Privacy policy mismatch",
+    });
+    expect(rejected.release.status).toBe("rejected");
+    await expect(recordResubmission(deps, owner.id, rel.id)).rejects.toMatchObject({
+      code: "conflict",
+    }); // actions still open
+    for (const a of rejected.actions)
+      await updateCorrectiveAction(deps, owner.id, a.id, { status: "done" });
+    expect((await recordResubmission(deps, owner.id, rel.id)).submission.attemptNumber).toBe(2);
+    await recordReviewOutcome(deps, owner.id, rel.id, { outcome: "approved", message: "Approved" });
+    expect((await markReleased(deps, owner.id, rel.id)).status).toBe("released");
+
+    const v = await getPublishing(deps, owner.id, p.id);
+    expect(
+      v.targets[0]!.releases[0]!.submissions.map((s) => `${s.attemptNumber}:${s.status}`),
+    ).toEqual(["1:rejected", "2:approved"]);
+    expect(v.targets[0]!.readiness.requiredVerified).toBeGreaterThanOrEqual(4);
+
+    // RLS: the owner reads everything, a stranger nothing, and clients can never write
+    for (const table of [
+      "publish_targets",
+      "publish_claims",
+      "publish_releases",
+      "publish_submissions",
+      "publish_feedback",
+      "publish_actions",
+      "publish_events",
+    ]) {
+      expect((await owner.client.from(table).select("*")).data!.length, table).toBeGreaterThan(0);
+      expect((await stranger.client.from(table).select("*")).data, table).toEqual([]);
+    }
+    expect(
+      (await owner.client.from("publish_releases").update({ status: "draft" }).eq("id", rel.id))
+        .error,
+    ).not.toBeNull();
+    expect(
+      (
+        await owner.client.from("publish_claims").insert({
+          target_id: target.id,
+          requirement_key: "x",
+          kind: "self_reported",
+          note: "forged claim from a client",
+        })
+      ).error,
+    ).not.toBeNull();
+    expect(
+      (
+        await owner.client
+          .from("publish_submissions")
+          .insert({ release_id: rel.id, attempt_number: 9 })
+      ).error,
+    ).not.toBeNull();
+    expect(
+      (
+        await owner.client
+          .from("publish_events")
+          .insert({ project_id: p.id, actor_role: "owner", action: "forged" })
+      ).error,
+    ).not.toBeNull();
+
+    // the trail is complete and immutable even for the service role
+    const trail = (await stores.publishing.listEvents(p.id, 100)).map((e) => e.action);
+    expect(trail).toEqual(
+      expect.arrayContaining([
+        "target_added",
+        "release_created",
+        "submission_recorded",
+        "review_rejected",
+        "resubmission_recorded",
+        "review_approved",
+        "released",
+      ]),
+    );
+    expect(
+      (await admin.from("publish_events").update({ action: "tampered" }).eq("project_id", p.id))
+        .error,
+    ).not.toBeNull();
+  }, 60_000);
+
+  it("publishing: a stuck repository blocks readiness in the real stack and nothing the user enters clears it", async () => {
+    const owner = await makeUser();
+    const { deps, p } = await publishingProject(owner.id, "stuck-app");
+    const target = await addTarget(deps, owner.id, p.id, "google_play");
+    await saveMetadata(deps, owner.id, target.id, FILL_META);
+    for (const k of GOOGLE_CLAIMS)
+      await setRequirementClaim(deps, owner.id, target.id, k, {
+        kind: "self_reported",
+        note: "Completed in Play Console",
+      });
+    const rel = await createRelease(deps, owner.id, target.id, { version: "1.0.0" });
+    await expect(markReleaseReady(deps, owner.id, rel.id)).rejects.toMatchObject({
+      code: "conflict",
+    });
+    const t = (await getPublishing(deps, owner.id, p.id)).targets[0]!;
+    expect(t.readiness.blockers.length).toBeGreaterThanOrEqual(3);
+    expect(t.readiness.results.find((r) => r.key === "build.ci-passing")!.status).toBe("blocked");
+    await expect(
+      setRequirementClaim(deps, owner.id, target.id, "build.ci-passing", {
+        kind: "self_reported",
+        note: "CI is fine I swear",
+      }),
+    ).rejects.toMatchObject({ code: "invalid" });
+  }, 60_000);
+
+  it("publishing: the database release state machine matches the TypeScript one for every status pair", async () => {
+    const owner = await makeUser();
+    const { p } = await publishingProject(owner.id);
+    const target = await stores.publishing.createTarget(p.id, "web", new Date());
+    let n = 0;
+    const mismatches: string[] = [];
+    for (const from of RELEASE_STATUSES) {
+      for (const to of RELEASE_STATUSES) {
+        if (from === to) continue;
+        n++;
+        const version = `${n}.0.0`;
+        const ins = await admin
+          .from("publish_releases")
+          .insert({ target_id: target.id, version, status: from })
+          .select()
+          .single();
+        expect(ins.error).toBeNull();
+        // a recorded submission exists so only the transition rule itself decides
+        await admin.from("publish_submissions").insert({
+          release_id: ins.data!.id,
+          attempt_number: 1,
+          status: ["rejected", "approved", "withdrawn"].includes(from) ? from : "submitted",
+        });
+        const upd = await admin
+          .from("publish_releases")
+          .update({ status: to })
+          .eq("id", ins.data!.id);
+        const dbAllows = upd.error === null;
+        if (dbAllows !== RELEASE_TRANSITIONS[from].includes(to))
+          mismatches.push(`${from} -> ${to}: db=${dbAllows}`);
+      }
+    }
+    expect(mismatches).toEqual([]);
+  }, 120_000);
+
+  it("publishing: Publishing Assistance and expert access follow the view_publishing scope on the real stack", async () => {
+    const owner = await makeUser();
+    const expertUser = await makeUser();
+    const adminUser = await makeUser();
+    await admin.from("admins").insert({ user_id: adminUser.id });
+    const { deps, p } = await publishingProject(owner.id);
+    const target = await addTarget(deps, owner.id, p.id, "google_play");
+    await saveMetadata(deps, owner.id, target.id, FILL_META);
+
+    const asked = await requestPublishingAssistance(deps, owner.id, p.id, {
+      targetId: target.id,
+      summary: "Please review my Play listing before I submit",
+    });
+    const dup = await requestPublishingAssistance(deps, owner.id, p.id, {
+      summary: "Asking again should not duplicate it",
+    });
+    expect([asked.alreadyOpen, dup.alreadyOpen]).toEqual([false, true]);
+    expect(asked.request).toMatchObject({ kind: "publishing", publishTargetId: target.id });
+
+    const expert = await applyAsExpert(deps, expertUser.id, {
+      displayName: "Pia",
+      skills: ["google play"],
+    });
+    await adminReviewExpert(deps, adminUser.id, expert.id, { decision: "approved" });
+    await adminMatch(deps, adminUser.id, asked.request!.id, expert.id);
+    expect((await expertUser.client.from("publish_targets").select("id")).data).toEqual([]); // no handoff yet
+    await grantHandoff(deps, owner.id, asked.request!.id, { scopes: ["view_findings"], days: 3 });
+    expect((await expertUser.client.from("publish_targets").select("id")).data).toEqual([]); // wrong scope
+    await revokeHandoff(deps, owner.id, asked.request!.id);
+    await grantHandoff(deps, owner.id, asked.request!.id, { scopes: ["view_publishing"], days: 3 });
+    expect((await expertUser.client.from("publish_targets").select("id")).data).toHaveLength(1);
+    expect(
+      (await expertUser.client.from("publish_events").select("id")).data!.length,
+    ).toBeGreaterThan(0);
+    expect(
+      (
+        await expertUser.client
+          .from("publish_releases")
+          .update({ status: "draft" })
+          .eq("target_id", target.id)
+      ).error,
+    ).not.toBeNull(); // experts can read, never write
+    const view = await expertWorkspace(deps, expertUser.id, asked.request!.id);
+    expect(view.publishing?.targets).toHaveLength(1);
+    expect(view.findings).toBeUndefined();
+    await revokeHandoff(deps, owner.id, asked.request!.id);
+    expect((await expertUser.client.from("publish_targets").select("id")).data).toEqual([]);
+  }, 60_000);
 });
