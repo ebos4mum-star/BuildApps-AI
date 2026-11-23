@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Linking, ScrollView, Text, TextInput, View } from "react-native";
 import { RESCUE_STAGES } from "@buildapps/core";
 import type {
   FindingRow,
   FindingStatus,
-  HandoffScope,
   InstallationRow,
   RepoInfo,
-  RequestView,
   WorkspaceView,
 } from "@buildapps/api-client";
 import { Badge, Bar, Button, Card, s } from "../components/ui";
 import { api } from "../lib/session";
+import { Section } from "../components/Section";
+import { PublishingSection } from "./Publishing";
+import { RequestBlock, type Act } from "./RequestBlock";
 import { c } from "../theme";
 
 const KIND = {
@@ -19,51 +20,7 @@ const KIND = {
   static_warning: "Static warning",
   recommendation: "Unverified recommendation",
 } as const;
-const SCOPES: { id: HandoffScope; label: string }[] = [
-  { id: "view_project", label: "Project overview & milestones" },
-  { id: "view_scans", label: "Scan assessments" },
-  { id: "view_findings", label: "Findings" },
-  { id: "view_verification", label: "Verification results" },
-];
-const REQUEST_TEXT: Record<string, string> = {
-  submitted: "Waiting to be matched with a vetted expert",
-  matched: "Matched - expert reviewing",
-  in_progress: "In progress",
-  delivered: "Delivered - review the work",
-  completed: "Completed",
-  cancelled: "Cancelled",
-};
 const ICON = { pass: "✅", fail: "❌", skipped: "⏳", unavailable: "➖" } as const;
-
-/** Collapsible section so a long workspace stays usable on a phone. */
-function Section({
-  title,
-  badge,
-  open: initial = false,
-  children,
-}: {
-  title: string;
-  badge?: string;
-  open?: boolean;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(initial);
-  return (
-    <Card>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        onPress={() => setOpen(!open)}
-        style={{ flexDirection: "row", alignItems: "center" }}
-      >
-        <Text style={[s.h2, { flex: 1, marginVertical: 0 }]}>{title}</Text>
-        {badge ? <Badge text={badge} tone="warn" /> : null}
-        <Text style={{ color: c.muted, fontSize: 18, marginLeft: 8 }}>{open ? "▾" : "▸"}</Text>
-      </Pressable>
-      {open ? <View style={{ marginTop: 8 }}>{children}</View> : null}
-    </Card>
-  );
-}
 
 export function WorkspaceScreen({ id }: { id: string }) {
   const [ws, setWs] = useState<WorkspaceView | null>(null);
@@ -224,6 +181,7 @@ export function WorkspaceScreen({ id }: { id: string }) {
       </Section>
 
       <HelpSection ws={ws} act={act} busy={busy} />
+      <PublishingSection projectId={p.id} />
 
       {p.state === "active" ? (
         <>
@@ -250,8 +208,6 @@ export function WorkspaceScreen({ id }: { id: string }) {
     </ScrollView>
   );
 }
-
-type Act = <T>(fn: () => Promise<T>, done?: (r: T) => string) => Promise<void>;
 
 function GithubSection({ ws, act, busy }: { ws: WorkspaceView; act: Act; busy: boolean }) {
   const [status, setStatus] = useState<{
@@ -496,29 +452,19 @@ function FindingsSection({ ws, open, act }: { ws: WorkspaceView; open: FindingRo
 
 function HelpSection({ ws, act, busy }: { ws: WorkspaceView; act: Act; busy: boolean }) {
   const p = ws.project;
-  const [view, setView] = useState<RequestView | null>(null);
   const [text, setText] = useState<string | null>(null);
-  const [scopes, setScopes] = useState<HandoffScope[]>(["view_project", "view_findings"]);
-  const [days, setDays] = useState(7);
-  const [reject, setReject] = useState<{ job: string; note: string } | null>(null);
-  const reqId = ws.helpRequest?.id;
-  const load = useCallback(async () => setView(reqId ? await api.myRequest(reqId) : null), [reqId]);
-  useEffect(() => {
-    load().catch(() => setView(null));
-  }, [load, ws.helpRequest?.status]);
-  const run: Act = async (fn, done) => {
-    await act(fn, done);
-    await load();
-  };
+  const run: Act = act;
   const stageIdx = p.recovery ? RESCUE_STAGES.indexOf(p.recovery.stage) : -1;
-  const formVisible =
-    !view || (text !== null && ["completed", "cancelled"].includes(view.request.status));
+  const closed = ws.helpRequest
+    ? ["completed", "cancelled"].includes(ws.helpRequest.status)
+    : false;
+  const formVisible = !ws.helpRequest || (text !== null && closed);
 
   return (
     <Section
       title={p.recovery ? "Recovery & expert help" : "Expert help"}
-      badge={view ? view.request.status.replace("_", " ") : undefined}
-      open={!!view}
+      badge={ws.helpRequest ? ws.helpRequest.status.replace("_", " ") : undefined}
+      open={!!ws.helpRequest}
     >
       {p.recovery ? (
         <Text style={s.muted}>
@@ -566,171 +512,15 @@ function HelpSection({ ws, act, busy }: { ws: WorkspaceView; act: Act; busy: boo
             />
           </View>
         )
-      ) : view ? (
+      ) : ws.helpRequest ? (
         <View>
-          <Text style={s.text}>{REQUEST_TEXT[view.request.status]}</Text>
-          <Text style={s.muted}>{view.request.summary}</Text>
-          {view.expert ? (
-            <Text style={[s.text, { marginTop: 6 }]}>
-              Expert: {view.expert.displayName}
-              {view.expert.headline ? ` - ${view.expert.headline}` : ""}
-            </Text>
-          ) : null}
-
-          {view.request.status === "matched" || view.request.status === "in_progress" ? (
-            view.handoff ? (
-              <View>
-                <Text style={[s.text, { marginTop: 8 }]}>
-                  Access granted until {new Date(view.handoff.expiresAt).toLocaleString()}:{" "}
-                  {view.handoff.scopes.join(", ")}
-                </Text>
-                <Button
-                  title="Revoke access now"
-                  kind="danger"
-                  disabled={busy}
-                  onPress={() => run(() => api.revokeHandoff(view.request.id))}
-                />
-              </View>
-            ) : (
-              <View>
-                <Text style={[s.label]}>
-                  Choose what your expert may see (never source code or credentials)
-                </Text>
-                {SCOPES.map((sc) => (
-                  <Pressable
-                    key={sc.id}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: scopes.includes(sc.id) }}
-                    onPress={() =>
-                      setScopes(
-                        scopes.includes(sc.id)
-                          ? scopes.filter((x) => x !== sc.id)
-                          : [...scopes, sc.id],
-                      )
-                    }
-                    style={{ paddingVertical: 8 }}
-                  >
-                    <Text style={s.text}>
-                      {scopes.includes(sc.id) ? "☑" : "☐"} {sc.label}
-                    </Text>
-                  </Pressable>
-                ))}
-                <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
-                  {[1, 3, 7, 14, 30].map((d) => (
-                    <Button
-                      key={d}
-                      title={`${d}d`}
-                      kind={days === d ? "primary" : "secondary"}
-                      onPress={() => setDays(d)}
-                    />
-                  ))}
-                </View>
-                <Button
-                  title={`Grant access for ${days} day${days > 1 ? "s" : ""}`}
-                  disabled={busy || scopes.length === 0}
-                  onPress={() => run(() => api.grantHandoff(view.request.id, scopes, days))}
-                />
-              </View>
-            )
-          ) : null}
-
-          {view.jobs.map((j) => (
-            <View
-              key={j.id}
-              style={{ borderTopColor: c.line, borderTopWidth: 1, paddingVertical: 8 }}
-            >
-              <Text style={s.text}>
-                {j.title} <Badge text={j.status} tone={j.status === "accepted" ? "ok" : "muted"} />
-              </Text>
-              {j.deliverableNote ? (
-                <Text style={s.muted}>Deliverable: {j.deliverableNote}</Text>
-              ) : null}
-              {j.deliverableUrl ? (
-                <Text
-                  style={{ color: c.sky }}
-                  onPress={() => void Linking.openURL(j.deliverableUrl!)}
-                >
-                  {j.deliverableUrl}
-                </Text>
-              ) : null}
-              {j.decisionNote ? <Text style={s.muted}>Your note: {j.decisionNote}</Text> : null}
-              {j.status === "submitted" ? (
-                <View style={{ flexDirection: "row", gap: 6 }}>
-                  <Button
-                    title="Accept"
-                    onPress={() => run(() => api.decideJob(view.request.id, j.id, "accept"))}
-                    style={{ flex: 1 }}
-                  />
-                  <Button
-                    title="Needs changes"
-                    kind="secondary"
-                    onPress={() => setReject({ job: j.id, note: "" })}
-                    style={{ flex: 1 }}
-                  />
-                </View>
-              ) : null}
-              {reject?.job === j.id ? (
-                <View>
-                  <TextInput
-                    accessibilityLabel="What needs to change?"
-                    style={s.input}
-                    placeholder="What needs to change?"
-                    placeholderTextColor="#6b64a8"
-                    value={reject.note}
-                    onChangeText={(t) => setReject({ job: j.id, note: t })}
-                  />
-                  <Button
-                    title="Send feedback"
-                    disabled={!reject.note.trim()}
-                    onPress={() =>
-                      void run(async () => {
-                        await api.decideJob(view.request.id, j.id, "reject", reject.note);
-                        setReject(null);
-                      })
-                    }
-                  />
-                </View>
-              ) : null}
-            </View>
-          ))}
-
-          {view.request.status === "delivered" ? (
-            <Button
-              title="Confirm job complete"
-              disabled={busy || view.jobs.some((j) => j.status !== "accepted")}
-              onPress={() => run(() => api.completeRequest(view.request.id))}
-            />
-          ) : null}
-          {["submitted", "matched", "in_progress"].includes(view.request.status) ? (
-            <Button
-              title="Cancel request"
-              kind="secondary"
-              disabled={busy}
-              onPress={() =>
-                Alert.alert("Cancel this request?", "Any expert access is revoked.", [
-                  { text: "Keep", style: "cancel" },
-                  {
-                    text: "Cancel request",
-                    style: "destructive",
-                    onPress: () => void run(() => api.cancelRequest(view.request.id)),
-                  },
-                ])
-              }
-            />
-          ) : null}
-
-          {view.events.length > 0 ? (
-            <View style={{ marginTop: 8 }}>
-              <Text style={s.label}>Job activity</Text>
-              {view.events.map((e) => (
-                <Text key={e.id} style={s.muted}>
-                  • {e.action.replace(/_/g, " ")} ({e.actorRole}){" "}
-                  {new Date(e.createdAt).toLocaleDateString()}
-                </Text>
-              ))}
-            </View>
-          ) : null}
-          {["completed", "cancelled"].includes(view.request.status) && text === null ? (
+          <RequestBlock
+            requestId={ws.helpRequest.id}
+            act={act}
+            busy={busy}
+            version={ws.helpRequest.status}
+          />
+          {closed && text === null ? (
             <Button title="Ask for more help" kind="secondary" onPress={() => setText("")} />
           ) : null}
         </View>
