@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable no-undef, no-console */
 // Reports which integrations are configured. Prints NAMES only, never values. Exit 1 if a REQUIRED group is incomplete.
 // Usage: node scripts/check-env.mjs [--production]
 const env = process.env;
