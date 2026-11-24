@@ -53,6 +53,13 @@ export default function Learn() {
         {d.streak.status === "active" ? " - practise today to keep your streak" : ""}
       </p>
 
+      {d.path.units.some((u) => u.lessons.some((l) => l.passed > 0)) && (
+        <p>
+          <Link className="btn secondary small" href="/learn/practice">
+            Practice your weakest skills
+          </Link>
+        </p>
+      )}
       <h2>Quests</h2>
       <div className="skills" aria-label="Daily and weekly quests">
         {d.quests.map((q) => (

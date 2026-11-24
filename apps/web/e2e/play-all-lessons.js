@@ -38,6 +38,7 @@ async function solve(page, ex, { wrong = false } = {}) {
       const cat = ex.categories.find((c) => c.id === ex.solution[it.id]).label;
       await page.locator(".pool").getByRole("button", { name: it.label, exact: true }).click();
       await page.getByRole("group", { name: cat, exact: true }).click();
+      await page.waitForTimeout(40); // let React commit the placement before the next tap
     }
   } else if (ex.type === "scenario") {
     const opt = wrong
@@ -137,6 +138,7 @@ async function solve(page, ex, { wrong = false } = {}) {
   for (const lesson of lessons) {
     await page.goto(`${BASE}/learn/${lesson.id}`);
     await page.getByRole("button", { name: "Let's go" }).click();
+    await page.waitForTimeout(250); // hydration
     let shots = 0;
     for (const ex of lesson.exercises) {
       const doWrong = first && (ex.type === "scenario" || ex.type === "bug_hunt");
@@ -214,6 +216,22 @@ async function solve(page, ex, { wrong = false } = {}) {
     (await fetch("/api/dashboard", { headers: { Authorization: "Bearer dev:tester" } })).json(),
   );
   assert(dash2.totalXp === before, "replays/retries cannot farm XP");
+
+  log("# personalized practice");
+  await page.goto(`${BASE}/learn/practice`);
+  await page.getByRole("button", { name: "Let's go" }).click();
+  const practiceTitle = await page.evaluate(
+    async () =>
+      (
+        await (
+          await fetch("/api/lessons/practice", { headers: { Authorization: "Bearer dev:tester" } })
+        ).json()
+      ).title,
+  );
+  assert(
+    practiceTitle === "Practice",
+    "practice set is served from the learner's passed exercises",
+  );
 
   log("# projects: rescue journey");
   await page.goto(`${BASE}/projects/new?journey=rescue`);

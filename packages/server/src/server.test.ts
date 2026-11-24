@@ -293,3 +293,26 @@ describe("daily and weekly quests", () => {
     expect(again.newQuests).toEqual([]);
   });
 });
+
+import { getPractice, getLessonForUser as lessonFor } from "./dashboard";
+describe("personalized practice", () => {
+  it("is empty for a new learner and reviews only passed exercises afterwards", async () => {
+    const s = createMemoryStores();
+    expect(await getPractice(s.progress, "newbie")).toBeNull();
+    for (const id of ["anatomy-1-match", "anatomy-1-seq", "anatomy-1-scn"])
+      await submit(s, id, right(ex(id)));
+    const p = await getPractice(s.progress, U);
+    expect(p).not.toBeNull();
+    expect(p!.exercises.length).toBeGreaterThan(0);
+    expect(
+      p!.exercises.every((e) =>
+        ["anatomy-1-match", "anatomy-1-seq", "anatomy-1-scn"].includes(e.id),
+      ),
+    ).toBe(true);
+    expect(JSON.stringify(p)).not.toMatch(/"solution"|"explanation"/);
+    expect(await lessonFor(s.progress, U, "practice")).not.toBeNull();
+    const again = await submit(s, "anatomy-1-seq", right(ex("anatomy-1-seq")));
+    expect(again.alreadyCompleted).toBe(true);
+    expect(again.xpAwarded).toBe(0);
+  });
+});

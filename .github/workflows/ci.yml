@@ -64,9 +64,14 @@ jobs:
         if: steps.cli1.outcome == 'failure' && steps.cli2.outcome == 'failure'
         run: sleep 90
       - uses: supabase/setup-cli@v1
+        id: cli3
         if: steps.cli1.outcome == 'failure' && steps.cli2.outcome == 'failure'
+        continue-on-error: true
         with:
           version: latest
+      - name: Fallback - install the CLI from npm (no GitHub API call)
+        if: steps.cli1.outcome == 'failure' && steps.cli2.outcome == 'failure' && steps.cli3.outcome == 'failure'
+        run: npm install -g supabase
       - name: Start local Supabase (Docker, no cloud resources)
         # retried: shared runners occasionally have a host port already bound
         run: |

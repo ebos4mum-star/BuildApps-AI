@@ -733,14 +733,12 @@ describe.skipIf(!enabled)("real Supabase integration", () => {
     expect((await other.client.from("support_requests").select("id")).data).toEqual([]);
     expect(
       (
-        await pat.client
-          .from("support_requests")
-          .insert({
-            user_id: pat.id,
-            category: "other",
-            subject: "direct",
-            body: "direct insert attempt",
-          })
+        await pat.client.from("support_requests").insert({
+          user_id: pat.id,
+          category: "other",
+          subject: "direct",
+          body: "direct insert attempt",
+        })
       ).error,
     ).not.toBeNull();
     expect((await pat.client.from("admin_audit").select("id")).error).not.toBeNull();

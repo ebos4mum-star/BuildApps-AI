@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import type { Dashboard } from "@buildapps/api-client";
-import { Badge, Bar, Card, s } from "../components/ui";
+import { Badge, Bar, Button, Card, s } from "../components/ui";
 import { api } from "../lib/session";
 import { c } from "../theme";
 
@@ -97,6 +97,13 @@ export function LearnScreen({
           })}
         </View>
       ))}
+      {d.path.units.some((u) => u.lessons.some((l) => l.passed > 0)) ? (
+        <Button
+          title="Practice your weakest skills"
+          kind="secondary"
+          onPress={() => onOpenLesson("practice")}
+        />
+      ) : null}
       <Text style={[s.h2, { marginTop: 16 }]}>Quests</Text>
       {d.quests.map((q) => (
         <Card key={q.id}>
