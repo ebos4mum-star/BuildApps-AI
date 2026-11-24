@@ -46,6 +46,12 @@ export function LessonPlayer({ lesson }: { lesson: LessonPayload }) {
   const [intro, setIntro] = useState(true);
   const [round, setRound] = useState(0);
   const feedbackRef = useRef<HTMLDivElement>(null);
+  // lessons opened from a project's finding carry the project id so the learner can return and rescan
+  const [fromProject, setFromProject] = useState<string | null>(null);
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("project");
+    setFromProject(p && /^[A-Za-z0-9_-]{1,64}$/.test(p) ? p : null);
+  }, []);
 
   const exId = currentExerciseId(session);
   const exercise: ClientExercise | undefined = exId ? byId.get(exId) : undefined;
@@ -114,7 +120,12 @@ export function LessonPlayer({ lesson }: { lesson: LessonPayload }) {
           Lesson complete. You earned {totals.xp} XP.
         </p>
         <div className="stack" style={{ maxWidth: 320, margin: "1.5rem auto 0" }}>
-          <Link href="/learn" className="btn">
+          {fromProject && (
+            <Link href={`/projects/${fromProject}`} className="btn" data-testid="back-to-project">
+              Back to my project to fix and rescan
+            </Link>
+          )}
+          <Link href="/learn" className={fromProject ? "btn secondary" : "btn"}>
             Continue
           </Link>
           <Link href="/projects" className="btn secondary">

@@ -19,7 +19,7 @@ type Screen =
   | { name: "learn" }
   | { name: "onboarding" }
   | { name: "check"; skillId: string }
-  | { name: "lesson"; id: string }
+  | { name: "lesson"; id: string; returnProject?: string }
   | { name: "projects" }
   | { name: "expert" }
   | { name: "admin" }
@@ -142,7 +142,12 @@ export default function App() {
                 lessonId={screen.id}
                 onExit={() => {
                   setRefresh((r) => r + 1);
-                  setScreen({ name: "learn" });
+                  // lessons opened from a project's finding return there, ready to fix and rescan
+                  setScreen(
+                    screen.returnProject
+                      ? { name: "project", id: screen.returnProject }
+                      : { name: "learn" },
+                  );
                 }}
               />
             )}
@@ -161,7 +166,7 @@ export default function App() {
             {screen.name === "project" && (
               <WorkspaceScreen
                 id={screen.id}
-                onOpenLesson={(l) => setScreen({ name: "lesson", id: l })}
+                onOpenLesson={(l) => setScreen({ name: "lesson", id: l, returnProject: screen.id })}
               />
             )}
           </View>

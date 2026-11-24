@@ -1,9 +1,11 @@
 import { calculateProgress, type Project } from "@buildapps/core";
+import { buildLearningPath } from "@buildapps/lessons";
 import { computeReadiness, type Readiness } from "@buildapps/scanner";
 import { z } from "zod";
 import { nowOf, type Deps } from "./deps";
 import { WorkspaceError } from "./errors";
 import { recommendForFindings, type LessonRecommendation } from "./project-learning";
+import { guidanceFor, type FindingGuidance } from "./finding-guidance";
 import { runtimeAvailability, type RuntimeAvailability } from "@buildapps/sandbox";
 import type { FindingRow, ScanRow, ServiceRequestRow, VerificationRunRow } from "./batch2-types";
 
@@ -23,10 +25,35 @@ export interface WorkspaceView {
   latestVerification: VerificationRunRow | null;
   readiness: Readiness;
   helpRequest: ServiceRequestRow | null;
+  /** Plain-language help, a corrective task and the matching lesson for each open finding, by finding id. */
+  guidance: Record<
+    string,
+    FindingGuidance & {
+      lessonTitle: string;
+      lessonStatus: "available" | "in_progress" | "locked" | "complete";
+    }
+  >;
   /** Whether isolated runtime verification may run (fails closed). */
   runtime: RuntimeAvailability;
   /** Lessons linked to the open findings of this project. */
   recommendedLessons: LessonRecommendation[];
+}
+
+function buildGuidance(
+  findings: FindingRow[],
+  passed: ReadonlySet<string>,
+  placedOut: ReadonlySet<string>,
+): WorkspaceView["guidance"] {
+  const path = buildLearningPath(passed, placedOut);
+  const status = new Map(path.units.flatMap((u) => u.lessons).map((l) => [l.id, l]));
+  const out: WorkspaceView["guidance"] = {};
+  for (const f of findings) {
+    if (f.status === "resolved" || f.status === "dismissed") continue;
+    const gd = guidanceFor(f.ruleId);
+    const lesson = gd ? status.get(gd.lessonId) : undefined;
+    if (gd && lesson) out[f.id] = { ...gd, lessonTitle: lesson.title, lessonStatus: lesson.status };
+  }
+  return out;
 }
 
 export async function getWorkspace(
@@ -86,6 +113,7 @@ export async function getWorkspace(
       hasScan: !!latestScan,
       latestVerification: verdict,
     }),
+    guidance: buildGuidance(sorted, learner.passedExerciseIds, learner.placedOut),
     runtime: runtimeAvailability(
       d.sandbox?.backendName ?? null,
       d.sandbox?.attestation ?? null,

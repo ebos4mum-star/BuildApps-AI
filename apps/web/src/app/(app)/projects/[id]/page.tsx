@@ -153,7 +153,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 {l.status === "locked" ? (
                   <strong>{l.title}</strong>
                 ) : (
-                  <Link href={`/learn/${l.lessonId}`}>
+                  <Link href={`/learn/${l.lessonId}?project=${ws.project.id}`}>
                     <strong>{l.title}</strong>
                   </Link>
                 )}{" "}

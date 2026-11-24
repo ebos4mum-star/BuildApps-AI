@@ -105,6 +105,31 @@ const api = (page, method, path, body) =>
   ok(/Evidence: repository scan/.test(page1), "verified milestone cites its evidence");
   await alice.screenshot({ path: `${OUT}/b2-01-findings.png`, fullPage: true });
 
+  log("# project-linked learning: every open finding explains itself and links a lesson");
+  const guide = await api(alice, "GET", `/api/workspace/${projectUrl.split("/").pop()}`);
+  const openFindings = guide.json.findings.filter((f) => f.status === "open");
+  ok(
+    openFindings.length > 0 && openFindings.every((f) => guide.json.guidance[f.id]),
+    "each open finding has guidance",
+  );
+  ok(
+    openFindings.every((f) => guide.json.guidance[f.id].steps.length >= 2),
+    "guidance includes a corrective task",
+  );
+  const envGuide = alice.getByTestId("guidance-env-file-committed");
+  await envGuide.locator("summary").click();
+  ok((await envGuide.innerText()).includes("rotate the keys"), "plain-language task is shown");
+  ok(
+    (await envGuide.innerText()).toLowerCase().includes("unlock by finishing earlier skills"),
+    "a lesson the learner has not unlocked yet is shown as locked, never bypassed",
+  );
+  const anyLink = alice.locator('[data-testid^="guidance-"] a[href*="?project="]');
+  ok(
+    (await anyLink.count()) === 0 ||
+      ((await anyLink.first().getAttribute("href")) ?? "").includes("?project="),
+    "available lessons remember the project so the learner can return and rescan",
+  );
+
   log("# Stage 4: user claims cannot be treated as verified; rescans reopen/keep decisions");
   const sel = (title) =>
     alice

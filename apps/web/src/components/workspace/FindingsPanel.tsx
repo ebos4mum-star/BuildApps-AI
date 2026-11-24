@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { api, type FindingRow, type FindingStatus, type WorkspaceView } from "@/lib/api-types";
 
@@ -120,6 +121,47 @@ export function FindingsPanel({
       <p style={{ margin: ".3rem 0" }}>
         <strong>Fix:</strong> {f.remedy}
       </p>
+      {ws.guidance[f.id] && (
+        <details className="guidance" data-testid={`guidance-${f.ruleId}`}>
+          <summary>Explain this and guide me through it</summary>
+          <p>{ws.guidance[f.id]!.plain}</p>
+          <p style={{ marginBottom: 0 }}>
+            <strong>Your corrective task</strong>
+          </p>
+          <ol>
+            {ws.guidance[f.id]!.steps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+          <p className="muted">
+            Then rescan: <em>{ws.guidance[f.id]!.verifiedBy}</em> Nothing is marked fixed until the
+            scan confirms it.
+          </p>
+          <div className="stats">
+            {ws.guidance[f.id]!.lessonStatus === "locked" ? (
+              <span className="badge">
+                Lesson: {ws.guidance[f.id]!.lessonTitle} (unlock by finishing earlier skills)
+              </span>
+            ) : (
+              <Link
+                className="btn small secondary"
+                href={`/learn/${ws.guidance[f.id]!.lessonId}?project=${ws.project.id}`}
+              >
+                {ws.guidance[f.id]!.lessonStatus === "complete" ? "Review" : "Learn"}:{" "}
+                {ws.guidance[f.id]!.lessonTitle}
+              </Link>
+            )}
+            {onAskExpert && (
+              <button
+                className="btn small secondary"
+                onClick={() => onAskExpert(`Help me with: ${f.title}`)}
+              >
+                Ask a developer
+              </button>
+            )}
+          </div>
+        </details>
+      )}
       <div className="stats">
         <label className="sr-only" htmlFor={`st-${f.id}`}>
           Status of {f.title}

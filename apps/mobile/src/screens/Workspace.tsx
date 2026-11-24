@@ -157,7 +157,7 @@ export function WorkspaceScreen({
         ) : null}
       </Section>
 
-      <FindingsSection ws={ws} open={open} act={act} />
+      <FindingsSection ws={ws} open={open} act={act} onOpenLesson={onOpenLesson} />
 
       {ws.recommendedLessons.length > 0 && (
         <Section title="Lessons for this project" badge={`${ws.recommendedLessons.length}`}>
@@ -379,7 +379,18 @@ function GithubSection({ ws, act, busy }: { ws: WorkspaceView; act: Act; busy: b
   );
 }
 
-function FindingsSection({ ws, open, act }: { ws: WorkspaceView; open: FindingRow[]; act: Act }) {
+function FindingsSection({
+  ws,
+  open,
+  act,
+  onOpenLesson,
+}: {
+  ws: WorkspaceView;
+  open: FindingRow[];
+  act: Act;
+  onOpenLesson: (lessonId: string) => void;
+}) {
+  const [guided, setGuided] = useState<string | null>(null);
   const [dismiss, setDismiss] = useState<{ id: string; note: string } | null>(null);
   const a = ws.latestScan?.assessment;
   const setStatus = (f: FindingRow, status: FindingStatus, note?: string) =>
@@ -424,6 +435,41 @@ function FindingsSection({ ws, open, act }: { ws: WorkspaceView; open: FindingRo
               </Text>
             ))}
             <Text style={[s.text, { marginTop: 4 }]}>Fix: {f.remedy}</Text>
+            {ws.guidance[f.id] ? (
+              <View style={{ marginTop: 6 }}>
+                <Button
+                  title={guided === f.id ? "Hide the guide" : "Explain this and guide me"}
+                  kind="secondary"
+                  onPress={() => setGuided(guided === f.id ? null : f.id)}
+                />
+                {guided === f.id ? (
+                  <View style={{ gap: 6, marginTop: 6 }}>
+                    <Text style={s.text}>{ws.guidance[f.id]!.plain}</Text>
+                    <Text style={[s.text, { fontWeight: "900" }]}>Your corrective task</Text>
+                    {ws.guidance[f.id]!.steps.map((step, n) => (
+                      <Text key={step} style={s.text}>
+                        {n + 1}. {step}
+                      </Text>
+                    ))}
+                    <Text style={s.muted}>
+                      Then rescan: {ws.guidance[f.id]!.verifiedBy} Nothing is marked fixed until the
+                      scan confirms it.
+                    </Text>
+                    {ws.guidance[f.id]!.lessonStatus === "locked" ? (
+                      <Text style={s.muted}>
+                        Lesson: {ws.guidance[f.id]!.lessonTitle} (unlock by finishing earlier
+                        skills)
+                      </Text>
+                    ) : (
+                      <Button
+                        title={`${ws.guidance[f.id]!.lessonStatus === "complete" ? "Review" : "Learn"}: ${ws.guidance[f.id]!.lessonTitle}`}
+                        onPress={() => onOpenLesson(ws.guidance[f.id]!.lessonId)}
+                      />
+                    )}
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
               {f.status !== "in_progress" ? (
                 <Button
