@@ -4,6 +4,21 @@ import { curriculum } from "@buildapps/lessons";
 import { FakeGitHubGateway } from "@buildapps/github";
 import { RELEASE_STATUSES, RELEASE_TRANSITIONS } from "@buildapps/publishing";
 import {
+  adminListAudit,
+  adminListReports,
+  adminListSupport,
+  adminListUsers,
+  adminOverview,
+  adminReviewReport,
+  adminSetLessonDisabled,
+  adminSetSuspension,
+  adminUpdateSupport,
+  createAbuseReport,
+  createSupportRequest,
+  disabledLessonIds,
+  listMySupport,
+  listNotifications,
+  markNotificationsRead,
   adminListExperts,
   addTarget,
   createRelease,
@@ -697,5 +712,92 @@ describe.skipIf(!enabled)("real Supabase integration", () => {
     expect(view.findings).toBeUndefined();
     await revokeHandoff(deps, owner.id, asked.request!.id);
     expect((await expertUser.client.from("publish_targets").select("id")).data).toEqual([]);
+  }, 60_000);
+
+  it("admin operations: support, reports, suspension, content flags, audit and notifications", async () => {
+    const stores2 = createSupabaseStores(admin);
+    const deps: Deps = { stores: stores2, gateway: null, stateSecret: "s".repeat(32) };
+    const adminUser = await makeUser();
+    await admin.from("admins").insert({ user_id: adminUser.id });
+    const pat = await makeUser();
+    const other = await makeUser();
+
+    const sr = await createSupportRequest(deps, pat.id, {
+      category: "account",
+      subject: "Cannot see progress",
+      body: "My progress looks empty after switching phones.",
+    });
+    expect(await listMySupport(deps, pat.id)).toHaveLength(1);
+    // RLS: the author reads it directly, others cannot, nobody can write directly
+    expect((await pat.client.from("support_requests").select("id")).data).toHaveLength(1);
+    expect((await other.client.from("support_requests").select("id")).data).toEqual([]);
+    expect(
+      (
+        await pat.client
+          .from("support_requests")
+          .insert({
+            user_id: pat.id,
+            category: "other",
+            subject: "direct",
+            body: "direct insert attempt",
+          })
+      ).error,
+    ).not.toBeNull();
+    expect((await pat.client.from("admin_audit").select("id")).error).not.toBeNull();
+    expect((await pat.client.from("account_status").select("user_id")).error).not.toBeNull();
+
+    await expect(adminListSupport(deps, other.id)).rejects.toMatchObject({ code: "forbidden" });
+    await adminUpdateSupport(deps, adminUser.id, sr.id, { status: "resolved", note: "Fixed" });
+    expect((await listMySupport(deps, pat.id))[0]!.status).toBe("resolved");
+    const notes = await listNotifications(deps, pat.id);
+    expect(notes[0]!.title).toMatch(/resolved/);
+    expect((await other.client.from("notifications").select("id")).data).toEqual([]);
+    expect((await markNotificationsRead(deps, pat.id, { ids: "all" })).updated).toBe(1);
+
+    await createAbuseReport(deps, pat.id, {
+      targetType: "user",
+      targetId: other.id,
+      reason: "spam",
+    });
+    const [rep] = await adminListReports(deps, adminUser.id, "open");
+    await adminReviewReport(deps, adminUser.id, rep!.id, {
+      status: "actioned",
+      note: "Warned them",
+    });
+
+    expect((await adminListUsers(deps, adminUser.id)).some((u) => u.id === other.id)).toBe(true);
+    await adminSetSuspension(deps, adminUser.id, other.id, {
+      suspended: true,
+      reason: "spam reports",
+    });
+    expect(await stores2.ops.isSuspended(other.id)).toBe(true);
+    await adminSetSuspension(deps, adminUser.id, other.id, { suspended: false });
+    expect(await stores2.ops.isSuspended(other.id)).toBe(false);
+
+    await adminSetLessonDisabled(deps, adminUser.id, "anatomy-1", {
+      disabled: true,
+      note: "typo found",
+    });
+    expect((await disabledLessonIds(stores2)).has("anatomy-1")).toBe(true);
+    await adminSetLessonDisabled(deps, adminUser.id, "anatomy-1", { disabled: false });
+    expect((await disabledLessonIds(stores2)).size).toBe(0);
+
+    const audit = await adminListAudit(deps, adminUser.id);
+    for (const a of [
+      "support.update",
+      "report.review",
+      "user.suspend",
+      "user.reinstate",
+      "lesson.disable",
+      "lesson.enable",
+    ])
+      expect(audit.some((x) => x.action === a)).toBe(true);
+    // the audit log is immutable even for the service role
+    expect(
+      (await admin.from("admin_audit").update({ action: "tampered" }).eq("id", audit[0]!.id)).error,
+    ).not.toBeNull();
+    expect((await admin.from("admin_audit").delete().eq("id", audit[0]!.id)).error).not.toBeNull();
+    const o = await adminOverview(deps, adminUser.id);
+    expect(o.users).toBeGreaterThan(2);
   }, 60_000);
 });
