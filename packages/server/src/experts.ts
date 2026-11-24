@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { nowOf, type Deps } from "./deps";
 import { WorkspaceError } from "./errors";
+import { audit, notify } from "./ops-service";
 import { buildPublishingView, type PublishingView } from "./publishing-service";
 import {
   HANDOFF_SCOPES,
@@ -90,6 +91,18 @@ export async function adminReviewExpert(
     nowOf(d),
   );
   if (v.decision !== "approved") await revokeForExpert(d, expertId); // access ends the moment an expert is not in good standing
+  await audit(d, adminId, `expert.${v.decision}`, "expert", expertId, { note: v.note ?? null });
+  await notify(d, e.userId, {
+    kind: "expert",
+    title:
+      v.decision === "approved"
+        ? "Your expert application was approved"
+        : v.decision === "rejected"
+          ? "Your expert application was not approved"
+          : "Your expert access was suspended",
+    body: v.note,
+    link: "/expert",
+  });
   return updated;
 }
 async function revokeForExpert(d: Deps, expertId: string) {
@@ -493,6 +506,19 @@ export async function adminMatch(d: Deps, adminId: string, requestId: string, ex
   const r = await adminMatchImpl(d, adminId, requestId, expertId);
   const e = await d.stores.rescue.getExpert(expertId);
   await log(d, requestId, adminId, "admin", "matched", { expert: e?.displayName ?? expertId });
+  await audit(d, adminId, "request.match", "service_request", requestId, { expertId });
+  await notify(d, r.requesterId, {
+    kind: "request",
+    title: "A vetted developer was matched to your request",
+    body: e?.displayName,
+    link: `/projects/${r.projectId}`,
+  });
+  if (e)
+    await notify(d, e.userId, {
+      kind: "request",
+      title: "New job matched to you",
+      link: "/expert",
+    });
   return r;
 }
 export async function grantHandoff(d: Deps, userId: string, requestId: string, input: unknown) {
@@ -582,5 +608,11 @@ export async function expertSubmitJobMilestone(
 export async function expertMarkDelivered(d: Deps, userId: string, requestId: string) {
   const r = await expertMarkDeliveredImpl(d, userId, requestId);
   await log(d, requestId, userId, "expert", "delivered");
+  await notify(d, r.requesterId, {
+    kind: "request",
+    title: "Your expert marked the job delivered",
+    body: "Review the work and accept it or ask for changes.",
+    link: `/projects/${r.projectId}`,
+  });
   return r;
 }

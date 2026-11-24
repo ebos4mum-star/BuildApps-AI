@@ -5,3 +5,4 @@ export * from "./skills";
 export * from "./projects";
 export * from "./journeys";
 export * from "./gamification";
+export * from "./quests";

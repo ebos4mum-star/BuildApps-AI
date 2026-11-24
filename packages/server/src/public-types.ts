@@ -37,3 +37,17 @@ export type {
   ResolutionSource,
 } from "./batch2-types";
 export { HANDOFF_SCOPES } from "./batch2-types";
+export type {
+  AbuseReportRow,
+  AuditRow,
+  ContentFlagRow,
+  NotificationRow,
+  OpsCounts,
+  ReportReason,
+  ReportStatus,
+  ReportTarget,
+  SupportCategory,
+  SupportRow,
+  SupportStatus,
+  UserSummary,
+} from "./ops-types";

@@ -22,7 +22,13 @@ const KIND = {
 } as const;
 const ICON = { pass: "✅", fail: "❌", skipped: "⏳", unavailable: "➖" } as const;
 
-export function WorkspaceScreen({ id }: { id: string }) {
+export function WorkspaceScreen({
+  id,
+  onOpenLesson,
+}: {
+  id: string;
+  onOpenLesson: (lessonId: string) => void;
+}) {
   const [ws, setWs] = useState<WorkspaceView | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -152,6 +158,23 @@ export function WorkspaceScreen({ id }: { id: string }) {
       </Section>
 
       <FindingsSection ws={ws} open={open} act={act} />
+
+      {ws.recommendedLessons.length > 0 && (
+        <Section title="Lessons for this project" badge={`${ws.recommendedLessons.length}`}>
+          <Text style={s.muted}>Picked from the open findings in your latest scan.</Text>
+          {ws.recommendedLessons.map((l) => (
+            <View key={l.lessonId} style={{ marginTop: 10 }}>
+              <Text style={s.text}>{l.title}</Text>
+              <Text style={s.muted}>{l.reason}</Text>
+              {l.status === "locked" ? (
+                <Text style={s.muted}>Unlock by progressing earlier skills.</Text>
+              ) : (
+                <Button title="Open lesson" onPress={() => onOpenLesson(l.lessonId)} />
+              )}
+            </View>
+          ))}
+        </Section>
+      )}
 
       <Section title="Verification" badge={ws.latestVerification ? undefined : "none yet"}>
         {!ws.latestVerification ? (

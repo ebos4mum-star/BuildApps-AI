@@ -55,6 +55,7 @@ function Player({ lesson, onExit }: { lesson: LessonPayload; onExit: () => void 
     streak: 0,
     levelUps: [] as string[],
     achievements: [] as string[],
+    quests: [] as string[],
   });
   const reduce = useReduceMotion();
   const slide = useRef(new Animated.Value(0)).current;
@@ -82,6 +83,7 @@ function Player({ lesson, onExit }: { lesson: LessonPayload; onExit: () => void 
         streak: out.streak.current,
         levelUps: [...t.levelUps, ...out.skillLevelUps.map((x) => `${x.skillId} ${x.level}`)],
         achievements: [...t.achievements, ...out.newAchievements.map((a) => a.name)],
+        quests: [...t.quests, ...out.newQuests.map((q) => `${q.name} (+${q.rewardXp} XP)`)],
       }));
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not check your answer");
@@ -118,6 +120,11 @@ function Player({ lesson, onExit }: { lesson: LessonPayload; onExit: () => void 
         {totals.achievements.length > 0 && (
           <Text style={[s.text, { color: c.sun, marginTop: 8 }]}>
             Achievement: {totals.achievements.join(", ")}
+          </Text>
+        )}
+        {totals.quests.length > 0 && (
+          <Text style={[s.text, { color: c.mint, marginTop: 8 }]}>
+            Quest complete: {totals.quests.join(", ")}
           </Text>
         )}
         <View style={{ alignSelf: "stretch", marginTop: 24 }}>

@@ -1,5 +1,6 @@
 import {
   ACHIEVEMENTS,
+  allQuestStatuses,
   computeAward,
   computeSkillTree,
   evaluateAchievements,
@@ -41,6 +42,7 @@ export interface AttemptOutcome extends GradeResult {
   level: number;
   streak: { current: number; longest: number; restDaysAvailable: number };
   newAchievements: { id: string; name: string }[];
+  newQuests: { id: string; name: string; rewardXp: number }[];
   skillLevelUps: { skillId: string; level: SkillLevel }[];
 }
 
@@ -53,10 +55,19 @@ const rank = (l: SkillLevel) => SKILL_LEVELS.indexOf(l);
  */
 export async function submitAttempt(
   store: ProgressStore,
-  input: { userId: string; exerciseId: string; answer: unknown; timeZone?: string; now?: Date },
+  input: {
+    userId: string;
+    exerciseId: string;
+    answer: unknown;
+    timeZone?: string;
+    now?: Date;
+    disabledLessons?: ReadonlySet<string>;
+  },
 ): Promise<AttemptOutcome> {
   const hit = findExercise(input.exerciseId);
   if (!hit) throw new AttemptError("unknown_exercise", "Unknown exercise");
+  if (input.disabledLessons?.has(hit.lesson.id))
+    throw new AttemptError("locked", "This lesson is temporarily unavailable");
   const now = input.now ?? new Date();
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -166,6 +177,24 @@ export async function submitAttempt(
       collect(rewardAward(input.userId, "achievement", a.id, a.rewardXp, now), 0);
     }
 
+    // 5) daily/weekly quests, from server-recorded exercise awards including this attempt
+    const questAwards = [
+      ...state.recentExerciseAwards,
+      ...awards
+        .filter((a) => a.source === "exercise")
+        .map((a) => ({ occurredAt: a.occurredAt.toISOString(), xp: a.xp })),
+    ];
+    const newQuests: AttemptOutcome["newQuests"] = [];
+    for (const q of allQuestStatuses(questAwards, now, tz)) {
+      if (!q.complete) continue;
+      const r = collect(
+        rewardAward(input.userId, "quest", `${q.quest.id}:${q.periodKey}`, q.quest.rewardXp, now),
+        0,
+      );
+      if (r.status === "awarded")
+        newQuests.push({ id: q.quest.id, name: q.quest.name, rewardXp: q.quest.rewardXp });
+    }
+
     const res = await store.apply({
       userId: input.userId,
       exerciseId: input.exerciseId,
@@ -194,6 +223,7 @@ export async function submitAttempt(
         restDaysAvailable: streak.restDaysAvailable,
       },
       newAchievements: earned.map((a) => ({ id: a.id, name: a.name })),
+      newQuests,
       skillLevelUps,
     };
   }

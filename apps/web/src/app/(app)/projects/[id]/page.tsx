@@ -1,5 +1,6 @@
 "use client";
 import { use, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { JOURNEY_INFO } from "@/components/Journeys";
 import { FindingsPanel } from "@/components/workspace/FindingsPanel";
 import { GithubCard } from "@/components/workspace/GithubCard";
@@ -142,6 +143,29 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           document.getElementById("expert-help")?.scrollIntoView({ behavior: "smooth" });
         }}
       />
+      {ws.recommendedLessons.length > 0 && (
+        <div className="card" data-testid="project-lessons">
+          <h2>Lessons for this project</h2>
+          <p className="muted">Picked from the open findings in your latest scan.</p>
+          <ul className="checks">
+            {ws.recommendedLessons.map((l) => (
+              <li key={l.lessonId}>
+                {l.status === "locked" ? (
+                  <strong>{l.title}</strong>
+                ) : (
+                  <Link href={`/learn/${l.lessonId}`}>
+                    <strong>{l.title}</strong>
+                  </Link>
+                )}{" "}
+                <span className="muted">
+                  {l.reason}
+                  {l.status === "locked" ? " (unlock by progressing earlier skills)" : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <VerificationPanel ws={ws} />
       <HelpPanel ws={ws} reload={reload} draft={draft} onDraftUsed={() => setDraft(null)} />
       <PublishingPanel projectId={p.id} />

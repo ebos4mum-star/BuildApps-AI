@@ -2,6 +2,15 @@ import type { Answer } from "@buildapps/lessons";
 import type { Project, ProjectIntake, ProjectState } from "@buildapps/core";
 import type { ActionStatus, Platform, ReasonCategory, ReviewOutcome } from "@buildapps/publishing";
 import type {
+  AbuseReportRow,
+  AuditRow,
+  ContentFlagRow,
+  NotificationRow,
+  ReportReason,
+  ReportTarget,
+  SupportCategory,
+  SupportRow,
+  UserSummary,
   ActionRow,
   AttemptOutcome,
   Dashboard,
@@ -25,7 +34,36 @@ import type {
   WorkspaceView,
 } from "@buildapps/server/types";
 
+export interface AdminOverview {
+  users: number;
+  suspendedUsers: number;
+  openSupport: number;
+  openReports: number;
+  pendingExperts: number;
+  requestsByStatus: Record<string, number>;
+  openPublishingAssistance: number;
+  awaitingMatch: number;
+  lessons: number;
+}
+export interface AdminLesson {
+  id: string;
+  title: string;
+  skillId: string;
+  exercises: number;
+  disabled: boolean;
+  note: string | null;
+}
+
 export type {
+  AbuseReportRow,
+  AuditRow,
+  ContentFlagRow,
+  NotificationRow,
+  ReportReason,
+  ReportTarget,
+  SupportCategory,
+  SupportRow,
+  UserSummary,
   ActionRow,
   AttemptOutcome,
   Dashboard,
@@ -328,6 +366,62 @@ export function createApiClient(opts: ApiClientOptions) {
       call<{ request: ServiceRequestRow }>("POST", `/api/admin/requests/${enc(requestId)}/match`, {
         expertId,
       }),
+    // ---- Administration (operations) ----
+    adminOverview: () => call<AdminOverview>("GET", "/api/admin/overview"),
+    adminUsers: (q?: string) =>
+      call<{ users: UserSummary[] }>(
+        "GET",
+        `/api/admin/users${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+      ).then((r) => r.users),
+    adminSetSuspension: (id: string, suspended: boolean, reason?: string) =>
+      call<{ user: UserSummary }>("POST", `/api/admin/users/${enc(id)}/suspension`, {
+        suspended,
+        ...(reason ? { reason } : {}),
+      }).then((r) => r.user),
+    adminSupport: (status?: SupportRow["status"]) =>
+      call<{ support: SupportRow[] }>(
+        "GET",
+        `/api/admin/support${status ? `?status=${status}` : ""}`,
+      ).then((r) => r.support),
+    adminUpdateSupport: (id: string, status: SupportRow["status"], note?: string) =>
+      call<{ support: SupportRow }>("POST", `/api/admin/support/${enc(id)}`, {
+        status,
+        ...(note ? { note } : {}),
+      }).then((r) => r.support),
+    adminReports: (status?: AbuseReportRow["status"]) =>
+      call<{ reports: AbuseReportRow[] }>(
+        "GET",
+        `/api/admin/reports${status ? `?status=${status}` : ""}`,
+      ).then((r) => r.reports),
+    adminReviewReport: (id: string, status: "actioned" | "dismissed", note: string) =>
+      call<{ report: AbuseReportRow }>("POST", `/api/admin/reports/${enc(id)}/review`, {
+        status,
+        note,
+      }).then((r) => r.report),
+    adminAudit: () => call<{ audit: AuditRow[] }>("GET", "/api/admin/audit").then((r) => r.audit),
+    adminContent: () =>
+      call<{ lessons: AdminLesson[] }>("GET", "/api/admin/content").then((r) => r.lessons),
+    adminSetLesson: (id: string, disabled: boolean, note?: string) =>
+      call<{ flag: ContentFlagRow }>("POST", `/api/admin/content/${enc(id)}`, {
+        disabled,
+        ...(note ? { note } : {}),
+      }).then((r) => r.flag),
+    // ---- Support, reporting, notifications (every signed-in user) ----
+    mySupport: () => call<{ support: SupportRow[] }>("GET", "/api/support").then((r) => r.support),
+    createSupport: (v: { category: SupportCategory; subject: string; body: string }) =>
+      call<{ support: SupportRow }>("POST", "/api/support", v).then((r) => r.support),
+    reportAbuse: (v: {
+      targetType: ReportTarget;
+      targetId: string;
+      reason: ReportReason;
+      detail?: string;
+    }) => call<{ ok: boolean }>("POST", "/api/support/report", v),
+    notifications: () =>
+      call<{ notifications: NotificationRow[] }>("GET", "/api/notifications").then(
+        (r) => r.notifications,
+      ),
+    markNotificationsRead: (ids: string[] | "all") =>
+      call<{ updated: number }>("POST", "/api/notifications/read", { ids }),
     // ---- Learning, projects ----
     dashboard: () => call<Dashboard>("GET", "/api/dashboard"),
     lesson: (id: string) => call<LessonPayload>("GET", `/api/lessons/${encodeURIComponent(id)}`),

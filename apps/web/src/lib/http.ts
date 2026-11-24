@@ -1,6 +1,6 @@
 import { ZodError } from "zod";
 import { AttemptError, ProjectError, WorkspaceError } from "@buildapps/server";
-import { verifyToken } from "./backend";
+import { getStores, verifyToken } from "./backend";
 
 const STATUS: Record<string, number> = {
   unknown_exercise: 404,
@@ -42,6 +42,8 @@ export async function handle(
     const m = /^Bearer (.+)$/.exec(req.headers.get("authorization") ?? "");
     const userId = m ? await verifyToken(m[1]!) : null;
     if (!userId) return fail(401, "unauthenticated", "Please sign in");
+    if (await getStores().ops.isSuspended(userId))
+      return fail(403, "account_suspended", "This account is suspended. Please contact support.");
     if (rateLimited(userId, 240)) return fail(429, "rate_limited", "Slow down a little");
     return await fn(userId);
   } catch (e) {

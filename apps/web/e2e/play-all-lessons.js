@@ -25,11 +25,14 @@ async function solve(page, ex, { wrong = false } = {}) {
       }
     }
   } else if (ex.type === "bug_hunt") {
-    const idx = ex.lines.findIndex((l) => l.id === ex.solution[0]);
-    await page
-      .locator(".code button")
-      .nth(wrong ? (idx + 1) % ex.lines.length : idx)
-      .click();
+    const idxs = ex.solution.map((id) => ex.lines.findIndex((l) => l.id === id));
+    if (wrong) {
+      // tap a single line that is not a bug
+      const other = ex.lines.findIndex((l) => !ex.solution.includes(l.id));
+      await page.locator(".code button").nth(other).click();
+    } else {
+      for (const idx of idxs) await page.locator(".code button").nth(idx).click();
+    }
   } else if (ex.type === "match") {
     for (const it of ex.items) {
       const cat = ex.categories.find((c) => c.id === ex.solution[it.id]).label;
@@ -159,7 +162,7 @@ async function solve(page, ex, { wrong = false } = {}) {
       await page.locator(".sheet.ok").waitFor();
       if (shots++ === 0 && lesson.id === "anatomy-1")
         await page.screenshot({ path: `${S}/03-correct-feedback.png` });
-      await page.getByRole("button", { name: /Continue/ }).click();
+      await page.getByRole("button", { name: "Continue", exact: true }).click();
     }
     // drain whatever is left (handles the requeue case): identify exercise by prompt text
     for (let guard = 0; guard < 10; guard++) {
@@ -170,7 +173,7 @@ async function solve(page, ex, { wrong = false } = {}) {
       await solve(page, ex);
       await page.getByRole("button", { name: "Check", exact: true }).click();
       await page.locator(".sheet.ok").waitFor();
-      await page.getByRole("button", { name: /Continue/ }).click();
+      await page.getByRole("button", { name: "Continue", exact: true }).click();
     }
     await page.getByText("Lesson complete!").waitFor();
     if (lesson.id === "anatomy-1") await page.screenshot({ path: `${S}/05-complete.png` });
@@ -185,7 +188,11 @@ async function solve(page, ex, { wrong = false } = {}) {
     (await fetch("/api/dashboard", { headers: { Authorization: "Bearer dev:tester" } })).json(),
   );
   assert(dash.totalXp > 300, `XP earned (${dash.totalXp})`);
-  assert(dash.streak.displayed === 1, "streak is 1 after a day of activity");
+  // a run that crosses midnight UTC legitimately records two learning days
+  assert(
+    dash.streak.displayed >= 1 && dash.streak.displayed <= 2,
+    "streak reflects the days of activity",
+  );
   assert(
     dash.path.units.flatMap((u) => u.lessons).every((l) => l.status === "complete"),
     "all lessons complete",
@@ -215,18 +222,18 @@ async function solve(page, ex, { wrong = false } = {}) {
   await page.fill("#problem", "Build fails after AI rewrote auth");
   await page.getByRole("button", { name: "Create project" }).click();
   await page.waitForURL(/\/projects\/[0-9a-f-]{36}/);
-  await page.getByText("Recovery plan").waitFor();
+  await page.getByRole("list", { name: "Recovery stages" }).waitFor();
   await page.getByRole("button", { name: "Next stage" }).click();
   await page.getByRole("button", { name: "Mark done" }).first().click();
   await page.getByText("Self-reported").first().waitFor();
   assert(
-    (await page.getByText("Verified", { exact: true }).count()) === 0,
+    (await page.locator(".ms .badge.verified").count()) === 0,
     "self-reported milestone is not shown as verified",
   );
   await page.getByRole("button", { name: "Ask a vetted developer for help" }).click();
   await page.fill("#help", "The build breaks after every change.");
   await page.getByRole("button", { name: "Send request" }).click();
-  await page.getByText(/Expert help requested/).waitFor();
+  await page.getByText(/Waiting for us to match you/).waitFor();
   await page.screenshot({ path: `${S}/07-project.png`, fullPage: true });
   await page.goto(`${BASE}/projects`);
   await page.getByText("Stuck app").waitFor();

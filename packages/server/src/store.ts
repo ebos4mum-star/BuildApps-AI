@@ -1,6 +1,7 @@
 import type { Project, RepoRef, StreakState } from "@buildapps/core";
 import type { GitHubStore, RescueStore, ScanStore } from "./batch2-types";
 import type { PublishingStore } from "./publishing-types";
+import type { OpsStore } from "./ops-types";
 
 /** Everything the attempt service needs to know about a user, loaded in one go. */
 export interface ProgressState {
@@ -84,4 +85,5 @@ export interface Stores {
   scans: ScanStore;
   rescue: RescueStore;
   publishing: PublishingStore;
+  ops: OpsStore;
 }

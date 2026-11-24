@@ -53,6 +53,29 @@ export default function Learn() {
         {d.streak.status === "active" ? " - practise today to keep your streak" : ""}
       </p>
 
+      <h2>Quests</h2>
+      <div className="skills" aria-label="Daily and weekly quests">
+        {d.quests.map((q) => (
+          <div className="card" key={q.id}>
+            <span className="badge">{q.period}</span> <strong>{q.name}</strong>
+            <div className="muted">
+              {q.description} {q.complete ? "Done - reward earned." : `+${q.rewardXp} XP`}
+            </div>
+            <div
+              className="bar"
+              style={{ marginTop: ".4rem" }}
+              role="progressbar"
+              aria-label={`${q.name} progress`}
+              aria-valuemin={0}
+              aria-valuemax={q.target}
+              aria-valuenow={q.progress}
+            >
+              <i style={{ width: `${(q.progress / q.target) * 100}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+
       {d.path.units.map((u) => (
         <section key={u.id} aria-labelledby={u.id}>
           <div className="unit" id={u.id}>

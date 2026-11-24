@@ -10,11 +10,16 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const [ready, setReady] = useState(false);
   const [admin, setAdmin] = useState(false);
+  const [unread, setUnread] = useState(0);
   useEffect(() => {
     getToken().then((t) => {
       if (!t) return router.replace("/login");
       setReady(true);
       api.adminMe().then(setAdmin, () => setAdmin(false)); // only used to show the Admin link
+      api.notifications().then(
+        (n) => setUnread(n.filter((x) => !x.readAt).length),
+        () => setUnread(0),
+      );
     });
   }, [router]);
   if (!ready)
@@ -37,6 +42,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         {link("/learn", "Learn")}
         {link("/projects", "Projects")}
         {link("/expert", "Expert")}
+        {link("/support", unread > 0 ? `Help (${unread} new)` : "Help")}
         {admin && link("/admin", "Admin")}
         <span className="spacer" />
         <button

@@ -188,6 +188,7 @@ const api = (page, method, path, body) =>
   ok((await dana.getByText("Your jobs").count()) === 0, "an unapproved expert cannot see jobs");
 
   await admin.goto(`${BASE}/admin`);
+  await admin.getByRole("tab", { name: "Experts & requests" }).click();
   await admin.getByText("Expert applications").waitFor();
   ok(
     await alice.goto(`${BASE}/admin`).then(() =>

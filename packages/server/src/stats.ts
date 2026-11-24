@@ -1,5 +1,6 @@
 import {
   ACHIEVEMENTS,
+  allQuestStatuses,
   computeAward,
   computeSkillTree,
   evaluateAchievements,
@@ -57,8 +58,31 @@ export async function syncAchievements(
       keys.add(r.award.awardKey);
     }
   }
+  // Completed daily/weekly quests: one reward per quest per period (idempotent award key).
+  const exerciseAwards = [
+    ...state.recentExerciseAwards,
+    ...extraAwards
+      .filter((a) => a.source === "exercise")
+      .map((a) => ({
+        occurredAt: a.occurredAt.toISOString(),
+        xp: a.xp,
+      })),
+  ];
+  const questsDone: string[] = [];
+  for (const q of allQuestStatuses(exerciseAwards, now, state.timeZone)) {
+    if (!q.complete) continue;
+    const r = computeAward(
+      rewardAward(userId, "quest", `${q.quest.id}:${q.periodKey}`, q.quest.rewardXp, now),
+      { existingAwardKeys: keys, exerciseXpEarnedToday: 0, timeZone: "UTC" },
+    );
+    if (r.status === "awarded") {
+      awards.push(r.award);
+      keys.add(r.award.awardKey);
+      questsDone.push(q.quest.name);
+    }
+  }
   if (awards.length === 0 && earned.length === 0)
-    return { xpAdded: 0, achievements: [] as string[] };
+    return { xpAdded: 0, achievements: [] as string[], quests: [] as string[] };
   const res = await progress.grant({
     userId,
     awards: awards.map((a) => ({
@@ -69,6 +93,6 @@ export async function syncAchievements(
     })),
     achievements: earned.map((a) => a.id),
   });
-  return { xpAdded: res.xpAdded, achievements: earned.map((a) => a.name) };
+  return { xpAdded: res.xpAdded, achievements: earned.map((a) => a.name), quests: questsDone };
 }
 export { ACHIEVEMENTS };

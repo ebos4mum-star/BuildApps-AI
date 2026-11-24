@@ -4,6 +4,7 @@ import { SafeAreaView, Text, View } from "react-native";
 import { LearnScreen } from "./screens/Learn";
 import { LessonScreen } from "./screens/Lesson";
 import { AdminScreen } from "./screens/Admin";
+import { HelpScreen } from "./screens/Help";
 import { ExpertScreen } from "./screens/Expert";
 import { LoginScreen } from "./screens/Login";
 import { NewProject, ProjectsList } from "./screens/Projects";
@@ -18,6 +19,7 @@ type Screen =
   | { name: "projects" }
   | { name: "expert" }
   | { name: "admin" }
+  | { name: "help" }
   | { name: "new" }
   | { name: "project"; id: string };
 
@@ -26,19 +28,24 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: "learn" });
   const [refresh, setRefresh] = useState(0);
   const [admin, setAdmin] = useState(false);
+  const [unread, setUnread] = useState(0);
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setAuthed(!!data.session));
     const { data } = supabase.auth.onAuthStateChange((_e, session) => {
       setAuthed(!!session);
-      if (session)
+      if (session) {
         api.adminMe().then(setAdmin, () => setAdmin(false)); // only decides whether to show the Admin tab
-      else setAdmin(false);
+        api.notifications().then(
+          (n) => setUnread(n.filter((x) => !x.readAt).length),
+          () => setUnread(0),
+        );
+      } else setAdmin(false);
     });
     return () => data.subscription.unsubscribe();
   }, []);
 
   if (authed === null) return <View style={{ flex: 1, backgroundColor: c.bg }} />;
-  const tab = (name: "learn" | "projects" | "expert" | "admin", label: string) => (
+  const tab = (name: "learn" | "projects" | "expert" | "help" | "admin", label: string) => (
     <Text
       onPress={() =>
         setScreen(
@@ -48,7 +55,9 @@ export default function App() {
               ? { name: "projects" }
               : name === "expert"
                 ? { name: "expert" }
-                : { name: "admin" },
+                : name === "help"
+                  ? { name: "help" }
+                  : { name: "admin" },
         )
       }
       accessibilityRole="tab"
@@ -82,6 +91,7 @@ export default function App() {
               {tab("learn", "Learn")}
               {tab("projects", "Projects")}
               {tab("expert", "Expert")}
+              {tab("help", unread > 0 ? `Help (${unread})` : "Help")}
               {admin ? tab("admin", "Admin") : null}
               <View style={{ flex: 1 }} />
               <View style={{ width: 110, paddingRight: 8 }}>
@@ -107,6 +117,7 @@ export default function App() {
             )}
             {screen.name === "expert" && <ExpertScreen />}
             {screen.name === "admin" && <AdminScreen />}
+            {screen.name === "help" && <HelpScreen onUnread={setUnread} />}
             {screen.name === "projects" && (
               <ProjectsList
                 onNew={() => setScreen({ name: "new" })}
@@ -116,7 +127,12 @@ export default function App() {
             {screen.name === "new" && (
               <NewProject onCreated={(id) => setScreen({ name: "project", id })} />
             )}
-            {screen.name === "project" && <WorkspaceScreen id={screen.id} />}
+            {screen.name === "project" && (
+              <WorkspaceScreen
+                id={screen.id}
+                onOpenLesson={(l) => setScreen({ name: "lesson", id: l })}
+              />
+            )}
           </View>
         </>
       )}

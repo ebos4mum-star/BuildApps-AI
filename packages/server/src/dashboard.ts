@@ -1,4 +1,10 @@
-import { ACHIEVEMENTS, getStreakStatus, levelFromXp, xpForLevel } from "@buildapps/core";
+import {
+  ACHIEVEMENTS,
+  allQuestStatuses,
+  getStreakStatus,
+  levelFromXp,
+  xpForLevel,
+} from "@buildapps/core";
 import {
   buildLearningPath,
   curriculum,
@@ -19,12 +25,37 @@ export interface Dashboard {
   path: LearningPath;
   skillNames: Record<string, string>;
   achievements: { id: string; name: string; earned: boolean }[];
+  quests: {
+    id: string;
+    name: string;
+    description: string;
+    period: "daily" | "weekly";
+    progress: number;
+    target: number;
+    complete: boolean;
+    rewardXp: number;
+  }[];
+}
+
+function withUnavailable(path: LearningPath, disabled: ReadonlySet<string>): LearningPath {
+  if (disabled.size === 0) return path;
+  return {
+    ...path,
+    nextLessonId: path.nextLessonId && disabled.has(path.nextLessonId) ? null : path.nextLessonId,
+    units: path.units.map((u) => ({
+      ...u,
+      lessons: u.lessons.map((l) =>
+        disabled.has(l.id) ? { ...l, status: "locked" as const, unavailable: true } : l,
+      ),
+    })),
+  };
 }
 
 export async function getDashboard(
   store: ProgressStore,
   userId: string,
   now = new Date(),
+  disabledLessons: ReadonlySet<string> = new Set(),
 ): Promise<Dashboard> {
   const s = await store.load(userId, "");
   const level = levelFromXp(s.totalXp);
@@ -40,12 +71,22 @@ export async function getDashboard(
       status: st.status,
       restDaysAvailable: s.streak.restDaysAvailable,
     },
-    path: buildLearningPath(s.passedExerciseIds),
+    path: withUnavailable(buildLearningPath(s.passedExerciseIds), disabledLessons),
     skillNames: Object.fromEntries(curriculum.skills.map((k) => [k.id, k.name])),
     achievements: ACHIEVEMENTS.map((a) => ({
       id: a.id,
       name: a.name,
       earned: s.earnedAchievements.has(a.id),
+    })),
+    quests: allQuestStatuses(s.recentExerciseAwards, now, s.timeZone).map((q) => ({
+      id: q.quest.id,
+      name: q.quest.name,
+      description: q.quest.description,
+      period: q.quest.period,
+      progress: Math.min(q.progress, q.quest.target),
+      target: q.quest.target,
+      complete: q.complete,
+      rewardXp: q.quest.rewardXp,
     })),
   };
 }
@@ -63,9 +104,10 @@ export async function getLessonForUser(
   store: ProgressStore,
   userId: string,
   lessonId: string,
+  disabledLessons: ReadonlySet<string> = new Set(),
 ): Promise<LessonPayload | null> {
   const lesson = getLesson(lessonId);
-  if (!lesson) return null;
+  if (!lesson || disabledLessons.has(lessonId)) return null;
   const s = await store.load(userId, "");
   if (!isExerciseUnlocked(lesson.exercises[0]!.id, s.passedExerciseIds)) return null;
   return {

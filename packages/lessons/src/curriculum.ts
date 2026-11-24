@@ -35,6 +35,8 @@ export interface PathLesson {
   status: LessonStatus;
   passed: number;
   total: number;
+  /** Set when an administrator has temporarily withheld the lesson. */
+  unavailable?: boolean;
 }
 export interface PathUnit {
   id: string;

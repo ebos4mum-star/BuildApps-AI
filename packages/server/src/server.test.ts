@@ -124,7 +124,9 @@ describe("submitAttempt", () => {
       ]),
     });
     const r = await submit(s, "anatomy-1-match", right(ex("anatomy-1-match")));
-    expect(r.xpAwarded).toBe(0);
+    // no exercise XP (cap reached); only the once-per-day "Focus session" quest reward is granted
+    expect(r.newQuests.map((q) => q.id)).toEqual(["daily-focus"]);
+    expect(r.xpAwarded).toBe(15);
     expect(r.correct).toBe(true);
     // next day the cap resets
     const next = await submit(
@@ -258,5 +260,36 @@ describe("dashboard & lesson delivery", () => {
     expect(d.streak).toMatchObject({ displayed: 1, status: "completed_today" });
     expect(d.achievements.find((a) => a.id === "first-exercise")?.earned).toBe(true);
     expect(d.path.nextLessonId).toBe("anatomy-1");
+  });
+});
+
+import { CATEGORY_LESSONS, recommendForFindings } from "./project-learning";
+import { getLesson as lessonById } from "@buildapps/lessons";
+describe("project-linked learning", () => {
+  it("only references real lessons", () => {
+    for (const ids of Object.values(CATEGORY_LESSONS))
+      for (const id of ids) expect(lessonById(id), id).toBeTruthy();
+  });
+  it("recommends lessons for open findings, highest severity first, skipping finished ones", () => {
+    const f = [
+      { category: "tests", title: "No tests", status: "open", severity: "medium" },
+      { category: "security", title: "Secret in code", status: "open", severity: "critical" },
+      { category: "build", title: "x", status: "resolved", severity: "high" },
+    ] as never;
+    const r = recommendForFindings(f, []);
+    expect(r[0]!.reason).toContain("Secret in code");
+    expect(r.some((x) => x.lessonId === "debug-1" && x.reason.includes("x"))).toBe(false);
+  });
+});
+
+describe("daily and weekly quests", () => {
+  it("grants each quest once per period, from server-recorded awards", async () => {
+    const s = createMemoryStores();
+    const ids = ["anatomy-1-match", "anatomy-1-seq", "anatomy-1-scn"];
+    const outs = [];
+    for (const id of ids) outs.push(await submit(s, id, right(ex(id))));
+    expect(outs.flatMap((o) => o.newQuests.map((q) => q.id))).toContain("daily-practice");
+    const again = await submit(s, ids[0]!, right(ex(ids[0]!)));
+    expect(again.newQuests).toEqual([]);
   });
 });

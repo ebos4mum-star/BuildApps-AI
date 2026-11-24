@@ -131,6 +131,10 @@ const api = (page, method, path, body) =>
   await card.getByLabel(/Notes for reviewers/).fill("Tap the settings tab, then Export");
   await card.getByRole("button", { name: "Save listing details" }).click();
   await alice.getByText("Listing details saved.").waitFor();
+  await card
+    .getByTestId("req-privacy.policy-url")
+    .getByText(/Self-reported/i)
+    .waitFor();
   ok(
     /Self-reported/i.test(await card.getByTestId("req-privacy.policy-url").innerText()),
     "entered metadata shows as Self-reported (not verified)",
@@ -308,6 +312,7 @@ const api = (page, method, path, body) =>
   await dana.getByRole("button", { name: "Submit application" }).click();
   await dana.getByText("pending", { exact: true }).waitFor();
   await admin.goto(`${BASE}/admin`);
+  await admin.getByRole("tab", { name: "Experts & requests" }).click();
   await admin.getByRole("button", { name: "Approve" }).first().click();
   await admin.getByText("approved", { exact: true }).first().waitFor();
   await admin.getByRole("button", { name: "Match expert" }).click();

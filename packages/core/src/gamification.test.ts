@@ -29,7 +29,7 @@ describe("achievements", () => {
         { ...stats, longestStreak: 7, verifiedMilestones: 1 },
         new Set(["first-exercise"]),
       ).map((a) => a.id),
-    ).toEqual(["week-streak", "first-verified-milestone"]);
+    ).toEqual(["three-day-streak", "week-streak", "first-verified-milestone"]);
   });
 });
 
@@ -59,5 +59,44 @@ describe("quests", () => {
     expect(
       computeAward(req, { ...ctx, existingAwardKeys: new Set(["reward:quest:q1"]) }).status,
     ).toBe("duplicate");
+  });
+});
+
+import { questStatus, PERIODIC_QUESTS, weekStart } from "./quests";
+describe("periodic quests", () => {
+  const q = (id: string) => PERIODIC_QUESTS.find((x) => x.id === id)!;
+  const a = (iso: string, xp = 10) => ({ occurredAt: iso, xp });
+  it("weeks start on Monday", () => {
+    expect(weekStart("2026-11-23")).toBe("2026-11-23");
+    expect(weekStart("2026-11-29")).toBe("2026-11-23");
+  });
+  it("daily counts only today in the learner's timezone", () => {
+    const now = "2026-11-23T12:00:00Z";
+    const s = questStatus(
+      q("daily-practice"),
+      [a("2026-11-23T01:00:00Z"), a("2026-11-22T11:00:00Z"), a(now), a(now)],
+      now,
+      "UTC",
+    );
+    expect(s.progress).toBe(3);
+    expect(s.complete).toBe(true);
+    expect(questStatus(q("daily-practice"), [a("2026-11-23T01:00:00Z")], now, "UTC").complete).toBe(
+      false,
+    );
+  });
+  it("weekly active days counts distinct days in the week", () => {
+    const now = "2026-11-26T12:00:00Z";
+    const s = questStatus(
+      q("weekly-steady"),
+      [
+        a("2026-11-23T10:00:00Z"),
+        a("2026-11-23T11:00:00Z"),
+        a("2026-11-25T10:00:00Z"),
+        a("2026-11-22T10:00:00Z"),
+      ],
+      now,
+      "UTC",
+    );
+    expect(s.progress).toBe(2);
   });
 });

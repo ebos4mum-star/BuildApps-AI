@@ -1,3 +1,4 @@
+import { SupabaseOpsStore } from "./ops-supabase-store";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Milestone,
@@ -64,7 +65,7 @@ export class SupabaseProgressStore implements ProgressStore {
     fail("load attempts", attempts.error);
     fail("load verified", verified.error);
     const p = progress.data;
-    const cutoff = Date.now() - 3 * 86_400_000;
+    const cutoff = Date.now() - 10 * 86_400_000;
     return {
       passedExerciseIds: new Set((completions.data ?? []).map((r) => r.exercise_id as string)),
       awardKeys: new Set((awards.data ?? []).map((r) => r.award_key as string)),
@@ -392,4 +393,5 @@ export const createSupabaseStores = (serviceClient: SupabaseClient): Stores => (
   scans: new SupabaseScanStore(serviceClient),
   rescue: new SupabaseRescueStore(serviceClient),
   publishing: new SupabasePublishingStore(serviceClient),
+  ops: new SupabaseOpsStore(serviceClient),
 });

@@ -34,3 +34,8 @@ Assistance with a publishing-only handoff. Needs a fresh dev server: `node e2e/p
 Drives the API client the mobile app ships (same `createApiClient`) and the web UI in a browser against one backend, in both
 directions, plus the server rules (refused claims, account isolation). Needs a fresh dev server:
 `node --experimental-transform-types e2e/parity-flows.js`.
+
+## Admin operations (`ops-flows.js`)
+
+Support requests, notifications, abuse reports, account suspension (and its enforcement on every API call), learning
+content withholding and the audit trail, with a non-admin and a suspended user. Needs a fresh dev server: `node e2e/ops-flows.js`.

@@ -3,6 +3,7 @@ import { computeReadiness, type Readiness } from "@buildapps/scanner";
 import { z } from "zod";
 import { nowOf, type Deps } from "./deps";
 import { WorkspaceError } from "./errors";
+import { recommendForFindings, type LessonRecommendation } from "./project-learning";
 import type { FindingRow, ScanRow, ServiceRequestRow, VerificationRunRow } from "./batch2-types";
 
 const SEV = ["critical", "high", "medium", "low", "info"];
@@ -21,6 +22,8 @@ export interface WorkspaceView {
   latestVerification: VerificationRunRow | null;
   readiness: Readiness;
   helpRequest: ServiceRequestRow | null;
+  /** Lessons linked to the open findings of this project. */
+  recommendedLessons: LessonRecommendation[];
 }
 
 export async function getWorkspace(
@@ -30,12 +33,13 @@ export async function getWorkspace(
 ): Promise<WorkspaceView> {
   const project = await d.stores.projects.get(userId, projectId);
   if (!project) throw new WorkspaceError("not_found", "Project not found");
-  const [link, latestScan, findings, latestVerification, requests] = await Promise.all([
+  const [link, latestScan, findings, latestVerification, requests, learner] = await Promise.all([
     d.stores.projects.getGithubLink(userId, projectId),
     d.stores.scans.latestScan(projectId),
     d.stores.scans.listFindings(projectId),
     d.stores.scans.latestVerification(projectId),
     d.stores.rescue.listRequestsForRequester(userId),
+    d.stores.progress.load(userId, ""),
   ]);
   const install = link.installationRowId
     ? await d.stores.github.getInstallation(userId, link.installationRowId)
@@ -79,6 +83,7 @@ export async function getWorkspace(
       hasScan: !!latestScan,
       latestVerification: verdict,
     }),
+    recommendedLessons: recommendForFindings(findings, learner.passedExerciseIds),
     helpRequest:
       requests
         .filter((r) => r.projectId === projectId && r.kind === "rescue" && r.status !== "cancelled")

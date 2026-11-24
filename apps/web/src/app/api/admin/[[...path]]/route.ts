@@ -1,5 +1,15 @@
 import { z } from "zod";
 import {
+  adminListAudit,
+  adminListContent,
+  adminListReports,
+  adminListSupport,
+  adminListUsers,
+  adminOverview,
+  adminReviewReport,
+  adminSetLessonDisabled,
+  adminSetSuspension,
+  adminUpdateSupport,
   adminListExperts,
   adminListRequests,
   adminMatch,
@@ -17,6 +27,30 @@ const requestStatus = z
 /** Administrator-only. Membership lives in the `admins` table, managed by the project owner via SQL. */
 export const { GET, POST, PUT, PATCH, DELETE } = makeRouter({
   "GET /me": async ({ userId }) => ({ admin: await getDeps().stores.rescue.isAdmin(userId) }),
+  "GET /overview": async ({ userId }) => adminOverview(getDeps(), userId),
+  "GET /users": async ({ userId, query }) => ({
+    users: await adminListUsers(getDeps(), userId, query.get("q") ?? undefined),
+  }),
+  "POST /users/:id/suspension": async ({ userId, params, body }) => ({
+    user: await adminSetSuspension(getDeps(), userId, params.id!, body),
+  }),
+  "GET /support": async ({ userId, query }) => ({
+    support: await adminListSupport(getDeps(), userId, query.get("status") ?? undefined),
+  }),
+  "POST /support/:id": async ({ userId, params, body }) => ({
+    support: await adminUpdateSupport(getDeps(), userId, params.id!, body),
+  }),
+  "GET /reports": async ({ userId, query }) => ({
+    reports: await adminListReports(getDeps(), userId, query.get("status") ?? undefined),
+  }),
+  "POST /reports/:id/review": async ({ userId, params, body }) => ({
+    report: await adminReviewReport(getDeps(), userId, params.id!, body),
+  }),
+  "GET /audit": async ({ userId }) => ({ audit: await adminListAudit(getDeps(), userId) }),
+  "GET /content": async ({ userId }) => ({ lessons: await adminListContent(getDeps(), userId) }),
+  "POST /content/:id": async ({ userId, params, body }) => ({
+    flag: await adminSetLessonDisabled(getDeps(), userId, params.id!, body),
+  }),
   "GET /experts": async ({ userId, query }) => ({
     experts: await adminListExperts(
       getDeps(),

@@ -3,6 +3,7 @@ import { ScrollView, Text, View } from "react-native";
 import type { ExpertRow, ServiceRequestRow } from "@buildapps/api-client";
 import { Badge, Button, Card, s } from "../components/ui";
 import { api } from "../lib/session";
+import { AdminOps } from "./AdminOps";
 
 /** Quick-action administration for a phone: vet experts and match requests. Detailed review stays on web. */
 export function AdminScreen() {
@@ -54,6 +55,7 @@ export function AdminScreen() {
           <Text style={s.text}>{err}</Text>
         </View>
       ) : null}
+      <AdminOps />
       <Text style={s.h2}>Expert applications</Text>
       {experts.length === 0 ? <Text style={s.muted}>No applications yet.</Text> : null}
       {experts.map((e) => (

@@ -97,6 +97,18 @@ export function LearnScreen({
           })}
         </View>
       ))}
+      <Text style={[s.h2, { marginTop: 16 }]}>Quests</Text>
+      {d.quests.map((q) => (
+        <Card key={q.id}>
+          <Text style={s.text}>
+            {q.name} · {q.period}
+          </Text>
+          <Text style={s.muted}>
+            {q.description} {q.complete ? "Done - reward earned." : `+${q.rewardXp} XP`}
+          </Text>
+          <Bar pct={(q.progress / q.target) * 100} label={`${q.name} progress`} />
+        </Card>
+      ))}
       <Text style={[s.h2, { marginTop: 16 }]}>Your skills</Text>
       {d.path.skills.map((k) => (
         <Card key={k.skillId} style={{ opacity: k.unlocked ? 1 : 0.6 }}>

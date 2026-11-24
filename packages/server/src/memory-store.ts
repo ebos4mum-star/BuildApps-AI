@@ -586,6 +586,7 @@ export class MemoryRescueStore implements RescueStore {
   }
 }
 
+import { MemoryOpsStore } from "./ops-memory-store";
 export function createMemoryStores() {
   const db = new MemoryDb();
   return {
@@ -596,5 +597,6 @@ export function createMemoryStores() {
     scans: new MemoryScanStore(db),
     rescue: new MemoryRescueStore(db),
     publishing: new MemoryPublishingStore(db),
+    ops: new MemoryOpsStore(db),
   } satisfies Stores & { db: MemoryDb };
 }

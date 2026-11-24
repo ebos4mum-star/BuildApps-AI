@@ -22,6 +22,60 @@ export interface AchievementDefinition {
 
 export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
   {
+    id: "ten-exercises",
+    name: "Warmed Up",
+    criteria: { stat: "exercisesCompleted", atLeast: 10 },
+    rewardXp: 20,
+  },
+  {
+    id: "fifty-exercises",
+    name: "Practice Habit",
+    criteria: { stat: "exercisesCompleted", atLeast: 50 },
+    rewardXp: 60,
+  },
+  {
+    id: "hundred-exercises",
+    name: "Century",
+    criteria: { stat: "exercisesCompleted", atLeast: 100 },
+    rewardXp: 120,
+  },
+  {
+    id: "three-day-streak",
+    name: "On a Roll",
+    criteria: { stat: "longestStreak", atLeast: 3 },
+    rewardXp: 15,
+  },
+  {
+    id: "month-streak",
+    name: "Unstoppable",
+    criteria: { stat: "longestStreak", atLeast: 30 },
+    rewardXp: 200,
+  },
+  {
+    id: "three-skills",
+    name: "Well Rounded",
+    criteria: { stat: "skillsAtIntermediate", atLeast: 3 },
+    rewardXp: 60,
+  },
+  {
+    id: "first-advanced",
+    name: "Specialist",
+    criteria: { stat: "skillsAtAdvanced", atLeast: 1 },
+    rewardXp: 100,
+  },
+  {
+    id: "xp-500",
+    name: "Rising Builder",
+    criteria: { stat: "totalXp", atLeast: 500 },
+    rewardXp: 25,
+  },
+  {
+    id: "xp-2000",
+    name: "Seasoned Builder",
+    criteria: { stat: "totalXp", atLeast: 2000 },
+    rewardXp: 75,
+  },
+  {
     id: "first-exercise",
     name: "First Steps",
     criteria: { stat: "exercisesCompleted", atLeast: 1 },

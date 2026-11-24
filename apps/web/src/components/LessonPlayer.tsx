@@ -22,6 +22,7 @@ import { Mascot } from "./Mascot";
 interface Totals {
   xp: number;
   achievements: string[];
+  quests: string[];
   levelUps: string[];
   streak: number;
 }
@@ -38,6 +39,7 @@ export function LessonPlayer({ lesson }: { lesson: LessonPayload }) {
   const [totals, setTotals] = useState<Totals>({
     xp: 0,
     achievements: [],
+    quests: [],
     levelUps: [],
     streak: 0,
   });
@@ -64,6 +66,7 @@ export function LessonPlayer({ lesson }: { lesson: LessonPayload }) {
       setTotals((t) => ({
         xp: t.xp + out.xpAwarded,
         achievements: [...t.achievements, ...out.newAchievements.map((a) => a.name)],
+        quests: [...t.quests, ...out.newQuests.map((q) => `${q.name} (+${q.rewardXp} XP)`)],
         levelUps: [...t.levelUps, ...out.skillLevelUps.map((s) => `${s.skillId} ${s.level}`)],
         streak: out.streak.current,
       }));
@@ -100,6 +103,11 @@ export function LessonPlayer({ lesson }: { lesson: LessonPayload }) {
         {totals.achievements.length > 0 && (
           <p>
             <span className="badge warn">Achievement</span> {totals.achievements.join(", ")}
+          </p>
+        )}
+        {totals.quests.length > 0 && (
+          <p role="status">
+            <span className="badge ok">Quest complete</span> {totals.quests.join(", ")}
           </p>
         )}
         <p role="status" className="sr-only">

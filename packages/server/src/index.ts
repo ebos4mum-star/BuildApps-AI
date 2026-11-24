@@ -17,3 +17,6 @@ export * from "./stats";
 export * from "./publishing-types";
 export * from "./publishing-memory-store";
 export * from "./publishing-service";
+export * from "./ops-types";
+export * from "./ops-memory-store";
+export * from "./ops-service";
