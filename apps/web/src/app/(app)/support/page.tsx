@@ -9,6 +9,7 @@ import type {
   SupportRow,
 } from "@buildapps/api-client";
 import Link from "next/link";
+import { EmptyState } from "@/components/Illustration";
 import { PrivacyCard } from "@/components/PrivacyCard";
 
 const CATEGORIES: SupportCategory[] = [
@@ -78,7 +79,9 @@ export default function SupportPage() {
 
       <h2>Notifications</h2>
       {notes.length === 0 ? (
-        <p className="muted">Nothing new. We will tell you here when something changes.</p>
+        <EmptyState scene="inbox-zero" title="Nothing new">
+          We will tell you here when something changes.
+        </EmptyState>
       ) : (
         <>
           <ul className="checks" data-testid="notifications">

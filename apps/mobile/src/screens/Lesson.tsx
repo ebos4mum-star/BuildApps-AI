@@ -13,6 +13,8 @@ import {
 } from "@buildapps/lessons";
 import type { AttemptOutcome, LessonPayload } from "@buildapps/api-client";
 import { ExerciseView } from "../components/ExerciseView";
+import { Rewards } from "../components/Rewards";
+import { haptic } from "../lib/haptics";
 import { Bar, Button, s, useReduceMotion } from "../components/ui";
 import { api, localTimeZone } from "../lib/session";
 import { c } from "../theme";
@@ -63,6 +65,9 @@ function Player({ lesson, onExit }: { lesson: LessonPayload; onExit: () => void 
   const exId = currentExerciseId(session);
   const exercise = exId ? byId.get(exId) : undefined;
   useEffect(() => {
+    if (session.status === "complete") haptic.celebrate();
+  }, [session.status]);
+  useEffect(() => {
     if (exercise) setDraft(initDraft(exercise));
   }, [exercise, round]);
   useEffect(() => {
@@ -78,6 +83,8 @@ function Player({ lesson, onExit }: { lesson: LessonPayload; onExit: () => void 
     try {
       const out = await api.submitAttempt(exercise.id, toAnswer(draft), localTimeZone());
       setResult(out);
+      if (out.correct) haptic.correct();
+      else haptic.wrong();
       setTotals((t) => ({
         xp: t.xp + out.xpAwarded,
         streak: out.streak.current,
@@ -112,21 +119,13 @@ function Player({ lesson, onExit }: { lesson: LessonPayload; onExit: () => void 
           ⚡ +{totals.xp} XP{totals.streak > 0 ? `   🔥 ${totals.streak}-day streak` : ""}
         </Text>
         <Text style={s.text}>✨ {session.firstTry.length} first-try</Text>
-        {totals.levelUps.length > 0 && (
-          <Text style={[s.text, { color: c.mint, marginTop: 8 }]}>
-            Skill up: {totals.levelUps.join(", ")}
-          </Text>
-        )}
-        {totals.achievements.length > 0 && (
-          <Text style={[s.text, { color: c.sun, marginTop: 8 }]}>
-            Achievement: {totals.achievements.join(", ")}
-          </Text>
-        )}
-        {totals.quests.length > 0 && (
-          <Text style={[s.text, { color: c.mint, marginTop: 8 }]}>
-            Quest complete: {totals.quests.join(", ")}
-          </Text>
-        )}
+        <Rewards
+          items={[
+            ...totals.levelUps.map((t) => ({ kind: "skill" as const, title: t })),
+            ...totals.achievements.map((t) => ({ kind: "achievement" as const, title: t })),
+            ...totals.quests.map((t) => ({ kind: "quest" as const, title: t })),
+          ]}
+        />
         <View style={{ alignSelf: "stretch", marginTop: 24 }}>
           <Button title="Continue" onPress={onExit} />
         </View>

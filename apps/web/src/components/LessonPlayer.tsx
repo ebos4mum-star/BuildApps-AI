@@ -15,6 +15,7 @@ import {
 } from "@buildapps/lessons";
 import type { AttemptOutcome, LessonPayload } from "@buildapps/api-client";
 import { api, localTimeZone } from "@/lib/session";
+import { Celebration } from "./Celebration";
 import { Confetti } from "./Confetti";
 import { ExerciseView } from "./ExerciseView";
 import { Mascot } from "./Mascot";
@@ -101,23 +102,16 @@ export function LessonPlayer({ lesson }: { lesson: LessonPayload }) {
           {totals.streak > 0 && <span className="stat">🔥 {totals.streak}-day streak</span>}
           <span className="stat">✨ {session.firstTry.length} first-try</span>
         </div>
-        {totals.levelUps.length > 0 && (
-          <p>
-            <span className="badge ok">Skill up</span> {totals.levelUps.join(", ")}
-          </p>
-        )}
-        {totals.achievements.length > 0 && (
-          <p>
-            <span className="badge warn">Achievement</span> {totals.achievements.join(", ")}
-          </p>
-        )}
-        {totals.quests.length > 0 && (
-          <p role="status">
-            <span className="badge ok">Quest complete</span> {totals.quests.join(", ")}
-          </p>
-        )}
+        <Celebration
+          items={[
+            ...totals.levelUps.map((t) => ({ kind: "skill" as const, title: t })),
+            ...totals.achievements.map((t) => ({ kind: "achievement" as const, title: t })),
+            ...totals.quests.map((t) => ({ kind: "quest" as const, title: t })),
+          ]}
+        />
         <p role="status" className="sr-only">
-          Lesson complete. You earned {totals.xp} XP.
+          Lesson complete. You earned {totals.xp} XP.{" "}
+          {[...totals.levelUps, ...totals.achievements, ...totals.quests].join(". ")}
         </p>
         <div className="stack" style={{ maxWidth: 320, margin: "1.5rem auto 0" }}>
           {fromProject && (

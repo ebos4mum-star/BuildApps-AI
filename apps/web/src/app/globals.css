@@ -766,3 +766,39 @@ details > summary {
   margin: 0.5rem 0;
   font-size: 0.92rem;
 }
+
+/* ---- rewards and illustrations ---- */
+.celebration {
+  display: grid;
+  gap: 0.6rem;
+  margin: 1rem auto;
+  max-width: 420px;
+}
+.reward-card {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.9rem;
+  animation: reward-pop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+@keyframes reward-pop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.illustration {
+  flex: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reward-card {
+    animation: none;
+  }
+}

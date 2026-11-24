@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { EmptyState } from "./../Illustration";
 import { useState } from "react";
 import { api, type FindingRow, type FindingStatus, type WorkspaceView } from "@/lib/api-types";
 
@@ -265,7 +266,9 @@ export function FindingsPanel({
       )}
       <h3>To do ({active.length})</h3>
       {active.length === 0 ? (
-        <p className="muted">Nothing open. Nice.</p>
+        <EmptyState scene="all-clear" title="Nothing open">
+          Your latest scan found nothing left to fix. Rescan after changes to keep it that way.
+        </EmptyState>
       ) : (
         <ol className="findings">{active.map(row)}</ol>
       )}

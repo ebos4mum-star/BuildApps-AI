@@ -14,6 +14,10 @@ import { quality } from "./quality-delivery";
 import { advancedOps, advancedSecurity } from "./advanced";
 import { debugCases } from "./challenges";
 import { guidedProjects } from "./projects";
+import { aiWorkflows } from "./ai-workflows";
+import { mobile, platformData } from "./mobile-and-platform";
+import { guidedProjects2 } from "./projects2";
+import { debugCases2 } from "./challenges2";
 import { apiIntegrations, auth, debugging, maintenance, security } from "./security-ops";
 
 export const skills: SkillDefinition[] = [
@@ -125,6 +129,16 @@ export const skills: SkillDefinition[] = [
       { skillId: "testing-verification", minLevel: "beginner" },
     ],
   },
+  {
+    id: "ai-workflows",
+    name: "AI coding workflows",
+    prerequisites: [{ skillId: "prompting", minLevel: "beginner" }],
+  },
+  {
+    id: "mobile",
+    name: "Mobile apps",
+    prerequisites: [{ skillId: "frontend", minLevel: "beginner" }],
+  },
 ];
 
 export const curriculum: Curriculum = {
@@ -156,6 +170,11 @@ export const curriculum: Curriculum = {
     ...advancedOps,
     ...debugCases,
     ...guidedProjects,
+    ...aiWorkflows,
+    ...mobile,
+    ...platformData,
+    ...guidedProjects2,
+    ...debugCases2,
   ],
   units: [
     { id: "unit-1", title: "Know your app", lessonIds: ["anatomy-1", "anatomy-2"] },
@@ -218,6 +237,57 @@ export const curriculum: Curriculum = {
       ],
     },
     { id: "unit-p3", title: "Guided project: Rescue an app", lessonIds: ["proj-rescue"] },
+    {
+      id: "unit-20",
+      title: "Build with AI tools",
+      lessonIds: [
+        "aiw-1",
+        "aiw-2",
+        "aiw-3",
+        "aiw-4",
+        "aiw-5",
+        "aiw-6",
+        "aiw-7",
+        "aiw-8",
+        "aiw-9",
+        "aiw-10",
+      ],
+    },
+    {
+      id: "unit-21",
+      title: "Mobile apps",
+      lessonIds: ["mob-1", "mob-2", "mob-3", "mob-4", "mob-5"],
+    },
+    {
+      id: "unit-22",
+      title: "Data, APIs and background work",
+      lessonIds: ["db-4", "api-4", "back-4", "auth-4"],
+    },
+    {
+      id: "unit-23",
+      title: "Privacy, testing and operations",
+      lessonIds: ["sec-5", "test-4", "ship-2", "ship-3"],
+    },
+    {
+      id: "unit-24",
+      title: "Interfaces for real people",
+      lessonIds: ["front-3", "ux-3", "ux-4"],
+    },
+    {
+      id: "unit-25",
+      title: "More debugging cases",
+      lessonIds: [
+        "case-double-events",
+        "case-white-screen",
+        "case-stale-data",
+        "case-surprise-bill",
+      ],
+    },
+    {
+      id: "unit-p4",
+      title: "Guided projects: notes, AI feature, store-ready",
+      lessonIds: ["proj-notes", "proj-ai-feature", "proj-mobile-ship"],
+    },
   ],
   paths: [
     {
@@ -242,6 +312,10 @@ export const curriculum: Curriculum = {
         "unit-14",
         "unit-15",
         "unit-16",
+        "unit-20",
+        "unit-21",
+        "unit-22",
+        "unit-24",
         "unit-p2",
       ],
     },
@@ -250,7 +324,7 @@ export const curriculum: Curriculum = {
       title: "Advanced: secure, operate and rescue",
       blurb:
         "Threat modelling, incident response, real debugging cases and rescuing a stalled app.",
-      unitIds: ["unit-17", "unit-18", "unit-19", "unit-p3"],
+      unitIds: ["unit-17", "unit-18", "unit-19", "unit-p3", "unit-23", "unit-25", "unit-p4"],
     },
   ],
 };

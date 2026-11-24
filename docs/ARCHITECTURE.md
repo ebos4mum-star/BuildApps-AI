@@ -89,3 +89,19 @@ M5 web · M6 mobile. Later: Rescue Scanner, Workspace, Verification Lab, Human R
 - **Placement checks**: experienced learners can pass a server-graded 4-question check to skip a skill. Passing
   unlocks dependents only (`placed_out`); it grants no XP, level, achievement or streak, so mastery is never falsely
   awarded. Answers are rate-limited and failures reveal no solutions.
+
+## Status after the product-experience pass
+
+- **Curriculum**: 96 lessons / 320 exercises, 6 guided projects, 9 debugging cases, 24 skills. New tracks: AI coding
+  workflows (instruction files, plan-first, permissions, context drift, prompt-to-app builders, AI editors, loops, git
+  safety, hallucinated packages), mobile apps and store requirements, relationships/API design/background jobs/OAuth,
+  privacy by design, permission testing, environments and monitoring. Tool names are used only as examples of tool
+  categories; nothing claims integrations with them. Targets of 150 lessons / 750 exercises / 15 projects / 30 cases are
+  not yet reached.
+- **Project-linked learning**: every scanner rule has plain-language guidance, a corrective task, the matching lesson and
+  a statement of what the rescan checks (`finding-guidance.ts`, tested for full rule coverage). Lessons opened from a
+  finding return to the project (web + mobile). Locked lessons stay locked and say so; placement checks unlock them.
+- **Design system**: `@buildapps/core` design tokens (colors, radius, motion) drive the mobile theme and are asserted
+  against the web CSS and WCAG AA contrast. Original scene illustrations, empty/all-clear states and reward cards
+  (reduced-motion aware); mobile adds reward cards and optional haptics (`expo-haptics`). Native haptics are unverified.
+- Mobile Android and iOS bundles export successfully. That proves the JavaScript bundles build, not native behavior.

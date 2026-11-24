@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { EmptyState } from "@/components/Illustration";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { calculateProgress } from "@buildapps/core";
@@ -63,9 +64,9 @@ export default function Projects() {
       </div>
       {projects.length === 0 && (
         <div className="card">
-          <p>
-            No projects yet. Start one, continue one you already have, or rescue one that is stuck.
-          </p>
+          <EmptyState scene="empty-projects" title="No projects yet">
+            Start one, continue one you already have, or rescue one that is stuck.
+          </EmptyState>
           <Link href="/projects/new" className="btn">
             Create a project
           </Link>

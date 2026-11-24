@@ -12,6 +12,7 @@ import {
   type LearnerProfile,
 } from "@buildapps/core";
 import { Bar, Button, s } from "../components/ui";
+import { haptic } from "../lib/haptics";
 import { api } from "../lib/session";
 import { c } from "../theme";
 
@@ -60,11 +61,12 @@ function Choices({
             accessibilityRole={multi ? "checkbox" : "radio"}
             accessibilityState={{ checked: on }}
             accessibilityLabel={`${o.title}. ${o.blurb}`}
-            onPress={() =>
+            onPress={() => {
+              haptic.tap();
               onChange(
                 multi ? (on ? selected.filter((x) => x !== o.id) : [...selected, o.id]) : [o.id],
-              )
-            }
+              );
+            }}
             style={({ pressed }) => ({
               backgroundColor: c.surface,
               borderRadius: 16,
