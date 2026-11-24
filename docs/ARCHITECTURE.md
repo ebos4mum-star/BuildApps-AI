@@ -105,3 +105,22 @@ M5 web · M6 mobile. Later: Rescue Scanner, Workspace, Verification Lab, Human R
   against the web CSS and WCAG AA contrast. Original scene illustrations, empty/all-clear states and reward cards
   (reduced-motion aware); mobile adds reward cards and optional haptics (`expo-haptics`). Native haptics are unverified.
 - Mobile Android and iOS bundles export successfully. That proves the JavaScript bundles build, not native behavior.
+
+## Status after the completion pass
+
+- **Curriculum targets met (enforced by a test)**: 162 lessons, 758 exercises, 15 guided projects, 30 debugging cases, 24
+  skills, three paths. Nine multi-part project tracks (online store, marketplace, booking platform, social network, fitness
+  and wellness app, business management app, AI-powered study assistant, mobile and web habit app, course platform) each walk
+  idea -> data and rules -> build -> tests -> launch -> operate in three lessons. A test also rejects duplicate prompts and
+  requires every required application type to have a project.
+- **Notifications**: provider-independent outbox, per-category preferences (account safety always on), quiet hours, retries
+  with backoff, dead-token cleanup, practice reminders, weekly summaries, and a scheduler endpoint guarded by `CRON_SECRET`.
+  Expo push and webhook-email adapters exist but are unverified against live services. Nothing is activated by default.
+- **Account**: settings (profile, time zone, notification preferences, privacy) on web and mobile; admin operations
+  dashboard (integrations are shown as configured-but-not-verified, queue health, support age, deletion backlog).
+- **Account erasure**: audited executor, off unless `ALLOW_ACCOUNT_ERASURE=1`, admin-only, cooling-off enforced, typed
+  account id, never admins or accounts with expert work in progress. The audit log stays immutable except for actor
+  anonymisation (a real defect found by the synthetic-account tests and fixed in migration `20260108`). Verified on
+  synthetic accounts in memory, in real Postgres and on the real local Supabase stack in CI.
+- **Learning map**: animated, reduced-motion aware, with a character beside the current lesson, unit completion states and a
+  personalised daily challenge.

@@ -104,3 +104,110 @@ export const bug = (
   solution: bugLines.map((i) => `l${i + 1}`),
   explanation,
 });
+
+// ---- compact helpers (same output as the long forms above; ids are generated) ----
+import type { Lesson, LessonKind } from "../types";
+
+/** Scenario: the correct option is written first; clients receive options shuffled deterministically. */
+export const sc = (
+  id: string,
+  difficulty: Difficulty,
+  prompt: string,
+  context: string,
+  right: [label: string, feedback: string],
+  wrongs: [label: string, feedback: string][],
+  explanation: string,
+): ScenarioExercise =>
+  scn(
+    id,
+    difficulty,
+    prompt,
+    context,
+    [
+      ["a", ...right],
+      ...wrongs.map(([l, f], i) => [String.fromCharCode(98 + i), l, f] as [string, string, string]),
+    ],
+    "a",
+    explanation,
+  );
+
+/** Sequence: steps are written in the correct order. */
+export const sq = (
+  id: string,
+  difficulty: Difficulty,
+  prompt: string,
+  steps: string[],
+  explanation: string,
+  context?: string,
+): SequenceExercise =>
+  seq(
+    id,
+    difficulty,
+    prompt,
+    steps.map((s, i) => [`s${i + 1}`, s] as Pair),
+    explanation,
+    context,
+  );
+
+/** Match: categories as [id,label] and items as { categoryId: [labels] }. */
+export const mt = (
+  id: string,
+  difficulty: Difficulty,
+  prompt: string,
+  categories: Pair[],
+  items: Record<string, string[]>,
+  explanation: string,
+): MatchExercise => {
+  let n = 0;
+  return mat(
+    id,
+    difficulty,
+    prompt,
+    categories,
+    Object.entries(items).flatMap(([cat, labels]) =>
+      labels.map((l) => [`i${++n}`, l, cat] as [string, string, string]),
+    ),
+    explanation,
+  );
+};
+
+/** Word bank: template uses {{key}} for gaps; `answers` gives the right word per gap, `extra` adds distractors. */
+export const wbk = (
+  id: string,
+  difficulty: Difficulty,
+  prompt: string,
+  template: string,
+  answers: Record<string, string>,
+  extra: string[],
+  explanation: string,
+  context?: string,
+): WordBankExercise => {
+  const parts = template.split(/\{\{(\w+)\}\}/g);
+  const tpl = parts.map((p, i) => (i % 2 === 1 ? { blank: p } : p)).filter((p) => p !== "");
+  const keys = Object.keys(answers);
+  const words: Pair[] = [
+    ...keys.map((k) => [`w_${k}`, answers[k]!] as Pair),
+    ...extra.map((e, i) => [`x${i}`, e] as Pair),
+  ];
+  return wb(
+    id,
+    difficulty,
+    prompt,
+    tpl,
+    words,
+    Object.fromEntries(keys.map((k) => [k, `w_${k}`])),
+    explanation,
+    context,
+  );
+};
+
+/** Lesson constructor with optional project-track metadata. */
+export const lesson = (
+  id: string,
+  skillId: string,
+  title: string,
+  summary: string,
+  hook: string,
+  exercises: Lesson["exercises"],
+  extra: { kind?: LessonKind; projectId?: string; projectTitle?: string } = {},
+): Lesson => ({ id, skillId, title, summary, hook, exercises, ...extra });

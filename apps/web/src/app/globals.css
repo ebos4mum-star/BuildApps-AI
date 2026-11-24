@@ -802,3 +802,65 @@ details > summary {
     animation: none;
   }
 }
+
+/* ---- animated progression map ---- */
+.path > .stop {
+  position: relative;
+  text-align: center;
+}
+.path > .stop + .stop::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -1.1rem;
+  height: 1.1rem;
+  border-left: 5px dotted var(--line);
+  transform: translateX(-50%);
+}
+.path > .stop.done + .stop::before {
+  border-left-color: var(--sun);
+}
+.node.current {
+  animation: pulse-ring 2s ease-out infinite;
+}
+@keyframes pulse-ring {
+  0% {
+    box-shadow:
+      0 8px 0 var(--mint-d),
+      0 0 0 0 rgba(25, 211, 162, 0.55);
+  }
+  70%,
+  100% {
+    box-shadow:
+      0 8px 0 var(--mint-d),
+      0 0 0 22px rgba(25, 211, 162, 0);
+  }
+}
+.bolt-walker {
+  position: absolute;
+  left: calc(50% + 70px);
+  top: 18px;
+  animation: hop 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes hop {
+  50% {
+    transform: translateY(-8px) rotate(-4deg);
+  }
+}
+.unit-meta {
+  float: right;
+  font-weight: 700;
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+.unit.complete {
+  background: linear-gradient(135deg, #e0a52a, #b9831a);
+  color: #2b1d00;
+}
+@media (prefers-reduced-motion: reduce) {
+  .node.current,
+  .bolt-walker {
+    animation: none;
+  }
+}

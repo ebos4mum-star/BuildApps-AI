@@ -63,6 +63,9 @@ export interface Lesson {
   hook: string;
   /** "debug_challenge" = a broken-app case to diagnose; "guided_project" = build something real step by step. */
   kind?: LessonKind;
+  /** Lessons sharing a projectId are the parts of one guided project (idea to shipped product). */
+  projectId?: string;
+  projectTitle?: string;
   exercises: Exercise[];
 }
 export type LessonKind = "lesson" | "debug_challenge" | "guided_project";

@@ -134,3 +134,17 @@ export function placementExerciseIds(skillId: string): string[] {
     .slice(0, PLACEMENT_SIZE)
     .map((e) => e.id);
 }
+
+/** A guided project is either a multi-part track (shared projectId) or a standalone guided_project lesson. */
+export function projectCount(): number {
+  const tracks = new Set<string>();
+  let standalone = 0;
+  for (const l of curriculum.lessons) {
+    if ((l.kind ?? "lesson") !== "guided_project") continue;
+    if (l.projectId) tracks.add(l.projectId);
+    else standalone++;
+  }
+  return tracks.size + standalone;
+}
+export const debugChallengeCount = (): number =>
+  curriculum.lessons.filter((l) => l.kind === "debug_challenge").length;

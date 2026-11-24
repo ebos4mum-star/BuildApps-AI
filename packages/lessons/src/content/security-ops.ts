@@ -267,7 +267,7 @@ export const security: Lesson[] = [
       scn(
         "sec-2-scn",
         2,
-        "What should you do?",
+        "What should you do with that finding?",
         "You want to add analytics that records each user's contacts to 'improve suggestions'. You do not need it for any feature.",
         [
           [

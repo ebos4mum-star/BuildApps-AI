@@ -126,6 +126,17 @@ export default function Learn() {
           )}
         </div>
       )}
+      {d.plan?.challengeLessonId && (
+        <div className="card" data-testid="challenge">
+          <strong>Today&apos;s challenge</strong>
+          <p className="muted" style={{ margin: ".3rem 0" }}>
+            Picked for your goals: put your skills to work on a real case.
+          </p>
+          <Link className="btn small" href={`/learn/${d.plan.challengeLessonId}`}>
+            Take the challenge
+          </Link>
+        </div>
+      )}
       <div className="card" data-testid="daily-goal">
         <strong>Today</strong>{" "}
         <span className="muted">
@@ -247,8 +258,15 @@ export default function Learn() {
 
       {shownUnits.map((u) => (
         <section key={u.id} aria-labelledby={u.id}>
-          <div className="unit" id={u.id}>
+          <div
+            className={`unit${u.lessons.every((l) => l.status === "complete") ? " complete" : ""}`}
+            id={u.id}
+          >
             {u.title}
+            <span className="unit-meta">
+              {u.lessons.filter((l) => l.status === "complete").length}/{u.lessons.length}
+              {u.lessons.every((l) => l.status === "complete") ? " ★ unit complete" : ""}
+            </span>
           </div>
           <div className="path">
             {u.lessons.map((l, i) => {
@@ -262,7 +280,16 @@ export default function Learn() {
                 </>
               );
               return (
-                <div key={l.id} style={{ textAlign: "center" }}>
+                <div
+                  key={l.id}
+                  className={`stop${l.status === "complete" ? " done" : ""}`}
+                  style={{ textAlign: "center" }}
+                >
+                  {current && (
+                    <span className="bolt-walker" aria-hidden="true">
+                      <Mascot size={38} />
+                    </span>
+                  )}
                   {l.status === "locked" ? (
                     <span
                       className={cls}

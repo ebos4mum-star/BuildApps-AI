@@ -5,6 +5,8 @@ import {
   toClientExercise,
   validateCurriculum,
   buildLearningPath,
+  projectCount,
+  debugChallengeCount,
   evidenceFromPassed,
   isExerciseUnlocked,
   startSession,
@@ -164,5 +166,37 @@ describe("lesson session", () => {
         lesson.exercises.map((e) => e.id),
       ).status,
     ).toBe("complete");
+  });
+});
+
+describe("content targets", () => {
+  it("meets the established curriculum targets", () => {
+    expect(curriculum.lessons.length).toBeGreaterThanOrEqual(150);
+    expect(all.length).toBeGreaterThanOrEqual(750);
+    expect(projectCount()).toBeGreaterThanOrEqual(15);
+    expect(debugChallengeCount()).toBeGreaterThanOrEqual(30);
+  });
+  it("covers the required application types with guided projects", () => {
+    const titles = curriculum.lessons
+      .filter((l) => l.projectTitle)
+      .map((l) => l.projectTitle!.toLowerCase());
+    for (const topic of [
+      "store",
+      "social",
+      "fitness",
+      "business",
+      "booking",
+      "marketplace",
+      "ai",
+      "mobile",
+    ])
+      expect(
+        titles.some((t) => t.includes(topic)),
+        topic,
+      ).toBe(true);
+  });
+  it("has no copy-pasted filler: every prompt is unique", () => {
+    const prompts = all.map((e) => e.prompt);
+    expect(new Set(prompts).size).toBe(prompts.length);
   });
 });

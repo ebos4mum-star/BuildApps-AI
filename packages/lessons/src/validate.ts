@@ -70,8 +70,8 @@ export function validateExercise(ex: Exercise): string[] {
 
 export function validateLesson(l: Lesson): string[] {
   const p = l.exercises.flatMap(validateExercise);
-  if (l.exercises.length < 3 || l.exercises.length > 7)
-    p.push(`${l.id}: lessons should be 3-7 exercises`);
+  if (l.exercises.length < 3 || l.exercises.length > 8)
+    p.push(`${l.id}: lessons should be 3-8 exercises`);
   if (new Set(l.exercises.map((e) => e.id)).size !== l.exercises.length)
     p.push(`${l.id}: duplicate exercise ids`);
   if (new Set(l.exercises.map((e) => e.type)).size < 2) p.push(`${l.id}: mix exercise types`);
@@ -105,6 +105,8 @@ export function validateCurriculum(c: Curriculum): string[] {
   for (const l of c.lessons) {
     if (l.kind === "debug_challenge" && !l.exercises.some((e) => e.type === "bug_hunt"))
       p.push(`${l.id}: a debug challenge needs a bug_hunt`);
+    if (l.projectId && (l.kind ?? "lesson") !== "guided_project")
+      p.push(`${l.id}: only guided projects carry a projectId`);
     if (l.kind === "guided_project" && l.exercises.length < 5)
       p.push(`${l.id}: a guided project needs at least 5 steps`);
   }

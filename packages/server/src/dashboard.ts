@@ -33,6 +33,8 @@ export interface Plan {
   focusLessonId: string | null;
   /** Skills the learner may prove they already know (no XP or mastery is awarded for these). */
   placementOffers: string[];
+  /** A debugging case or guided project that fits the learner's goals, if one is open. */
+  challengeLessonId: string | null;
   /** Whether to point the learner at their project workspace first. */
   projectFirst: boolean;
   headline: string;
@@ -101,11 +103,23 @@ export function buildPlan(
           const k = skills.get(id);
           return !!k && k.unlocked && k.level === "none" && !placedOut.has(id);
         });
+  const wantsProjects =
+    profile.goals.includes("ship_first_app") || profile.goals.includes("prepare_for_launch");
+  const wantsDebug =
+    profile.goals.includes("fix_broken_app") || profile.goals.includes("understand_ai_code");
+  const kinds: ("debug_challenge" | "guided_project")[] =
+    wantsDebug && !wantsProjects
+      ? ["debug_challenge", "guided_project"]
+      : ["guided_project", "debug_challenge"];
+  const challenge =
+    kinds.map((k) => lessons.find((l) => l.kind === k && open(l))).find((l) => l !== undefined) ??
+    null;
   const pathId = profile.experience === "experienced" ? "intermediate" : "beginner";
   const projectFirst = profile.intent === "continue" || profile.intent === "rescue";
   return {
     pathId,
     focusLessonId: focus?.id ?? null,
+    challengeLessonId: challenge?.id ?? null,
     placementOffers,
     projectFirst,
     headline: projectFirst

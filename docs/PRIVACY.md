@@ -20,4 +20,9 @@
 3. Revoke any GitHub App installation row for the user (cascades with the user).
 4. Record the erasure in the admin Privacy tab with a note describing what was done.
 
-Erasure is deliberately not triggered by an API call: it is destructive and irreversible.
+The executor (`POST /api/admin/privacy/deletions/:id/execute`, also in the admin Privacy tab) performs steps 2-3 for you,
+but is disabled unless the operator sets `ALLOW_ACCOUNT_ERASURE=1`. It refuses before the cooling-off ends, requires the
+account id to be typed exactly, never erases administrators, refuses accounts with expert work in progress and writes the
+audit entry before erasing. Audit rows keep their content, with the erased actor removed. `target_id` columns hold an
+opaque id and are retained for integrity. Erasure is irreversible: use it only for approved requests, and confirm legal and
+store requirements first. Never run it against real accounts during development; tests use synthetic accounts only.

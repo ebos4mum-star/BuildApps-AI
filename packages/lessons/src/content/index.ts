@@ -18,6 +18,14 @@ import { aiWorkflows } from "./ai-workflows";
 import { mobile, platformData } from "./mobile-and-platform";
 import { guidedProjects2 } from "./projects2";
 import { debugCases2 } from "./challenges2";
+import { projectsCommerce } from "./projects-commerce";
+import { projectsSocialWellness } from "./projects-social-wellness";
+import { projectsAiCross } from "./projects-ai-cross";
+import { cases3 } from "./cases3";
+import { cases4 } from "./cases4";
+import { lessons5 } from "./lessons5";
+import { lessons6 } from "./lessons6";
+import { extraUnits } from "./units-extra";
 import { apiIntegrations, auth, debugging, maintenance, security } from "./security-ops";
 
 export const skills: SkillDefinition[] = [
@@ -141,7 +149,7 @@ export const skills: SkillDefinition[] = [
   },
 ];
 
-export const curriculum: Curriculum = {
+const base: Curriculum = {
   skills,
   lessons: [
     ...appAnatomy,
@@ -175,6 +183,13 @@ export const curriculum: Curriculum = {
     ...platformData,
     ...guidedProjects2,
     ...debugCases2,
+    ...projectsCommerce,
+    ...projectsSocialWellness,
+    ...projectsAiCross,
+    ...cases3,
+    ...cases4,
+    ...lessons5,
+    ...lessons6,
   ],
   units: [
     { id: "unit-1", title: "Know your app", lessonIds: ["anatomy-1", "anatomy-2"] },
@@ -327,4 +342,64 @@ export const curriculum: Curriculum = {
       unitIds: ["unit-17", "unit-18", "unit-19", "unit-p3", "unit-23", "unit-25", "unit-p4"],
     },
   ],
+};
+
+/** One unit per multi-part project track, built from the lessons' projectId so it can never drift. */
+function trackUnits(lessons: Curriculum["lessons"]) {
+  const byProject = new Map<string, { title: string; ids: string[] }>();
+  for (const l of lessons) {
+    if (!l.projectId) continue;
+    const e = byProject.get(l.projectId) ?? { title: l.projectTitle ?? l.projectId, ids: [] };
+    e.ids.push(l.id);
+    byProject.set(l.projectId, e);
+  }
+  return [...byProject.entries()].map(([id, v]) => ({
+    id: `unit-${id}`,
+    title: `Project track: ${v.title}`,
+    lessonIds: v.ids,
+  }));
+}
+
+/** Units added by later content batches, each placed in a path. */
+export interface ExtraUnit {
+  path: "beginner" | "intermediate" | "advanced";
+  id: string;
+  title: string;
+  lessonIds: string[];
+}
+/**
+ * Generic stems ("Order the fix.") are reused across debugging cases. Where a prompt repeats, name the lesson it
+ * belongs to so every prompt is distinct and tells the learner which case it is about.
+ */
+function distinctPrompts(lessons: Curriculum["lessons"]): Curriculum["lessons"] {
+  const seen = new Set<string>();
+  return lessons.map((l) => ({
+    ...l,
+    exercises: l.exercises.map((e) => {
+      let prompt = e.prompt;
+      if (seen.has(prompt))
+        prompt = `${prompt.replace(/[.?]$/, "")} (${l.title.replace(/^Case: /, "")})${/\?$/.test(e.prompt) ? "?" : "."}`;
+      seen.add(prompt);
+      return prompt === e.prompt ? e : { ...e, prompt };
+    }),
+  }));
+}
+const tracks = trackUnits(base.lessons);
+const extras: ExtraUnit[] = extraUnits;
+export const curriculum: Curriculum = {
+  ...base,
+  lessons: distinctPrompts(base.lessons),
+  units: [
+    ...base.units,
+    ...extras.map(({ id, title, lessonIds }) => ({ id, title, lessonIds })),
+    ...tracks,
+  ],
+  paths: base.paths.map((p) => ({
+    ...p,
+    unitIds: [
+      ...p.unitIds,
+      ...extras.filter((e) => e.path === p.id).map((e) => e.id),
+      ...(p.id === "advanced" ? tracks.map((t) => t.id) : []),
+    ],
+  })),
 };

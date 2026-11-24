@@ -660,7 +660,7 @@ export const aiWorkflows: Lesson[] = [
       wb(
         "aiw-10-wb",
         2,
-        "Complete the rule of thumb.",
+        "Complete the rule for AI-assisted changes.",
         [
           "The more ",
           { blank: "a" },

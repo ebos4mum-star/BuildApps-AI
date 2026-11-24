@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import type { Dashboard } from "@buildapps/api-client";
 import { Badge, Bar, Button, Card, s } from "../components/ui";
+import { Pulse } from "../components/Pulse";
 import { api } from "../lib/session";
 import { c } from "../theme";
 
@@ -105,6 +106,18 @@ export function LearnScreen({
           ) : null}
         </Card>
       ) : null}
+      {d.plan?.challengeLessonId ? (
+        <Card>
+          <Text style={{ color: c.text, fontWeight: "900" }}>Today&apos;s challenge</Text>
+          <Text style={s.muted}>
+            Picked for your goals: put your skills to work on a real case.
+          </Text>
+          <Button
+            title="Take the challenge"
+            onPress={() => onOpenLesson(d.plan!.challengeLessonId!)}
+          />
+        </Card>
+      ) : null}
       <Card>
         <Text style={{ color: c.text, fontWeight: "900" }}>
           Today{" "}
@@ -156,6 +169,11 @@ export function LearnScreen({
               accessibilityRole="header"
             >
               {u.title}
+              {"  "}
+              <Text style={{ fontWeight: "700", fontSize: 13 }}>
+                {u.lessons.filter((l) => l.status === "complete").length}/{u.lessons.length}
+                {u.lessons.every((l) => l.status === "complete") ? " ★ complete" : ""}
+              </Text>
             </Text>
           </View>
           {u.lessons.map((l, i) => {
@@ -170,36 +188,71 @@ export function LearnScreen({
                   transform: [{ translateX: [0, 40, 0, -40][i % 4]! }],
                 }}
               >
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: locked }}
-                  accessibilityLabel={`${l.kind === "lesson" ? "" : l.kind === "debug_challenge" ? "Debugging case: " : "Guided project: "}${l.title}. ${locked ? "Locked" : `${l.passed} of ${l.total} done`}`}
-                  disabled={locked}
-                  onPress={() => onOpenLesson(l.id)}
-                  style={({ pressed }) => ({
-                    width: 84,
-                    height: 84,
-                    borderRadius: 42,
-                    backgroundColor: bg,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transform: [{ scale: pressed ? 0.94 : 1 }],
-                    borderBottomWidth: 7,
-                    borderBottomColor: "rgba(0,0,0,0.3)",
-                  })}
-                >
-                  <Text style={{ fontSize: 30, color: c.ink }}>
-                    {l.status === "complete"
-                      ? "★"
-                      : locked
-                        ? "🔒"
-                        : l.kind === "debug_challenge"
-                          ? "🐞"
-                          : l.kind === "guided_project"
-                            ? "🛠"
-                            : "▶"}
-                  </Text>
-                </Pressable>
+                {l.id === d.path.nextLessonId ? (
+                  <Pulse color={c.mint}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: locked }}
+                      accessibilityLabel={`${l.kind === "lesson" ? "" : l.kind === "debug_challenge" ? "Debugging case: " : "Guided project: "}${l.title}. ${locked ? "Locked" : `${l.passed} of ${l.total} done`}`}
+                      disabled={locked}
+                      onPress={() => onOpenLesson(l.id)}
+                      style={({ pressed }) => ({
+                        width: 84,
+                        height: 84,
+                        borderRadius: 42,
+                        backgroundColor: bg,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        transform: [{ scale: pressed ? 0.94 : 1 }],
+                        borderBottomWidth: 7,
+                        borderBottomColor: "rgba(0,0,0,0.3)",
+                      })}
+                    >
+                      <Text style={{ fontSize: 30, color: c.ink }}>
+                        {l.status === "complete"
+                          ? "★"
+                          : locked
+                            ? "🔒"
+                            : l.kind === "debug_challenge"
+                              ? "🐞"
+                              : l.kind === "guided_project"
+                                ? "🛠"
+                                : "▶"}
+                      </Text>
+                    </Pressable>
+                  </Pulse>
+                ) : (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: locked }}
+                    accessibilityLabel={`${l.kind === "lesson" ? "" : l.kind === "debug_challenge" ? "Debugging case: " : "Guided project: "}${l.title}. ${locked ? "Locked" : `${l.passed} of ${l.total} done`}`}
+                    disabled={locked}
+                    onPress={() => onOpenLesson(l.id)}
+                    style={({ pressed }) => ({
+                      width: 84,
+                      height: 84,
+                      borderRadius: 42,
+                      backgroundColor: bg,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transform: [{ scale: pressed ? 0.94 : 1 }],
+                      borderBottomWidth: 7,
+                      borderBottomColor: "rgba(0,0,0,0.3)",
+                    })}
+                  >
+                    <Text style={{ fontSize: 30, color: c.ink }}>
+                      {l.status === "complete"
+                        ? "★"
+                        : locked
+                          ? "🔒"
+                          : l.kind === "debug_challenge"
+                            ? "🐞"
+                            : l.kind === "guided_project"
+                              ? "🛠"
+                              : "▶"}
+                    </Text>
+                  </Pressable>
+                )}
                 <Text
                   style={{ color: c.text, fontWeight: "800", marginTop: 6, textAlign: "center" }}
                 >

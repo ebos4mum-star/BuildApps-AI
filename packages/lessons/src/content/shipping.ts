@@ -52,7 +52,7 @@ export const shipping: Lesson[] = [
         id: "ship-1-scn",
         type: "scenario",
         difficulty: 3,
-        prompt: "What should you do?",
+        prompt: "What should you do about this rejection?",
         context:
           "Your store submission was rejected: 'App crashes on launch on iPhone 12.' It works fine in your simulator.",
         options: [
