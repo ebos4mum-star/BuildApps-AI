@@ -2,6 +2,7 @@ import { z } from "zod";
 import { curriculum } from "@buildapps/lessons";
 import { nowOf, type Deps } from "./deps";
 import { WorkspaceError } from "./errors";
+import { fanOut } from "./notification-service";
 import type { Stores } from "./store";
 
 const parse = <T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, v: unknown): T => {
@@ -36,6 +37,7 @@ export async function notify(
 ) {
   try {
     await d.stores.ops.addNotification(userId, n, nowOf(d));
+    await fanOut(d, userId, n); // push/email copies, per the user's preferences
   } catch (e) {
     console.error("notification failed", e);
   }

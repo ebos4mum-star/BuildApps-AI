@@ -590,8 +590,10 @@ export class MemoryRescueStore implements RescueStore {
 }
 
 import { MemoryOpsStore } from "./ops-memory-store";
+import { MemoryAccountStore } from "./account-memory-store";
 export function createMemoryStores() {
   const db = new MemoryDb();
+  const ops = new MemoryOpsStore(db);
   return {
     db,
     progress: new MemoryProgressStore(db),
@@ -600,7 +602,8 @@ export function createMemoryStores() {
     scans: new MemoryScanStore(db),
     rescue: new MemoryRescueStore(db),
     publishing: new MemoryPublishingStore(db),
-    ops: new MemoryOpsStore(db),
+    ops,
     profiles: db.profiles,
+    account: new MemoryAccountStore(db, ops),
   } satisfies Stores & { db: MemoryDb };
 }

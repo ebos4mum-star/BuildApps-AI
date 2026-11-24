@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api-types";
 import type {
   DeletionRequestRow,
+  HealthReport,
   AbuseReportRow,
   AdminLesson,
   AdminOverview,
@@ -332,6 +333,15 @@ export function AuditPanel() {
 export function PrivacyPanel() {
   const { data, err, reload, setErr } = useLoad<DeletionRequestRow[]>(() => api.adminDeletions());
   const [note, setNote] = useState<Record<string, string>>({});
+  const [confirmId, setConfirmId] = useState<Record<string, string>>({});
+  async function execute(r: DeletionRequestRow) {
+    try {
+      await api.adminExecuteErasure(r.id, confirmId[r.id] ?? "");
+      await reload();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed");
+    }
+  }
   async function record(r: DeletionRequestRow) {
     try {
       await api.adminRecordErasure(r.id, note[r.id] ?? "");
@@ -372,7 +382,23 @@ export function PrivacyPanel() {
                     onChange={(e) => setNote({ ...note, [r.id]: e.target.value })}
                   />
                   <button className="btn danger small" onClick={() => record(r)}>
-                    Record erasure
+                    Record erasure done elsewhere
+                  </button>
+                  <label className="sr-only" htmlFor={`ex-${r.id}`}>
+                    Type the account id to erase
+                  </label>
+                  <input
+                    id={`ex-${r.id}`}
+                    placeholder={`Type ${r.userId} to permanently erase now`}
+                    value={confirmId[r.id] ?? ""}
+                    onChange={(e) => setConfirmId({ ...confirmId, [r.id]: e.target.value })}
+                  />
+                  <button
+                    className="btn danger small"
+                    disabled={(confirmId[r.id] ?? "") !== r.userId}
+                    onClick={() => execute(r)}
+                  >
+                    Erase account permanently
                   </button>
                 </>
               ) : (
@@ -382,5 +408,55 @@ export function PrivacyPanel() {
         );
       })}
     </>
+  );
+}
+
+export function HealthPanel() {
+  const { data, err } = useLoad<HealthReport>(() => api.adminHealth());
+  if (!data) return err ? <Err msg={err} /> : <p className="muted">Loading...</p>;
+  return (
+    <div data-testid="health">
+      <p className="muted">Generated {when(data.generatedAt)}. Read-only.</p>
+      {data.attention.length === 0 ? (
+        <p>
+          <span className="badge ok">Nothing needs attention</span>
+        </p>
+      ) : (
+        <ul role="status">
+          {data.attention.map((a) => (
+            <li key={a}>
+              <span className="badge warn">Attention</span> {a}
+            </li>
+          ))}
+        </ul>
+      )}
+      <h3>Integrations</h3>
+      <ul className="checks">
+        {data.integrations.map((i) => (
+          <li key={i.id}>
+            <strong>{i.label}</strong>{" "}
+            <span className={`badge ${i.status === "configured" ? "ok" : ""}`}>
+              {i.status === "configured" ? "Configured (not verified live)" : "Not configured"}
+            </span>
+            <div className="muted">{i.note}</div>
+          </li>
+        ))}
+      </ul>
+      <h3>Delivery queue</h3>
+      <p className="muted">
+        {data.notifications.pending} pending · {data.notifications.failed} failed ·{" "}
+        {data.notifications.sentLast24h} sent and {data.notifications.skippedLast24h} skipped in the
+        last 24h
+      </p>
+      <h3>Support and privacy</h3>
+      <p className="muted">
+        {data.support.open} open support requests
+        {data.support.oldestOpenHours !== null
+          ? ` (oldest ${data.support.oldestOpenHours}h)`
+          : ""}{" "}
+        · {data.privacy.pendingDeletions} pending deletions ({data.privacy.readyForReview} past
+        cooling-off) · erasure {data.privacy.erasureEnabled ? "enabled" : "disabled"} on this server
+      </p>
+    </div>
   );
 }

@@ -32,7 +32,12 @@ const OPERATIONS = Object.entries(client).flatMap(([k, v]) =>
 );
 
 /** Operations intentionally available on one platform only, with the reason. Keep this list short. */
-const INTENTIONAL_GAPS: Record<string, string> = {};
+const INTENTIONAL_GAPS: Record<string, string> = {
+  registerDevice:
+    "Push registration needs delivery credentials (Expo/FCM/APNs or Web Push keys) that do not exist yet; the server API is ready.",
+  removeDevice:
+    "Pairs with registerDevice: nothing registers devices until push credentials exist.",
+};
 
 describe("cross-platform parity", () => {
   const web = used(join(ROOT, "apps/web/src"));

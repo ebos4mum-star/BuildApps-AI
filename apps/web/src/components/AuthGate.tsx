@@ -43,6 +43,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         {link("/projects", "Projects")}
         {link("/expert", "Expert")}
         {link("/support", unread > 0 ? `Help (${unread} new)` : "Help")}
+        {link("/settings", "Settings")}
         {admin && link("/admin", "Admin")}
         <span className="spacer" />
         <button

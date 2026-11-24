@@ -1,5 +1,6 @@
 import type { GitHubGateway } from "@buildapps/github/types";
 import type { IsolationAttestation } from "@buildapps/sandbox";
+import type { NotificationProviders } from "./notification-service";
 import type { Stores } from "./store";
 
 export interface Deps {
@@ -13,6 +14,12 @@ export interface Deps {
    * repository code runs. A backend only counts after its probe attestation is current and complete.
    */
   sandbox?: { backendName: string; attestation: IsolationAttestation | null };
+  /** Delivery vendors. Absent by default: push/email are then skipped (never faked). */
+  notifications?: NotificationProviders;
+  /** Must be explicitly enabled before any account can be permanently erased. Off by default. */
+  allowErasure?: boolean;
+  /** Cooling-off before erasure. Defaults to 14 days; only ever lowered in development/test servers. */
+  coolingOffDays?: number;
   now?: () => Date;
 }
 export const nowOf = (d: Deps): Date => (d.now ? d.now() : new Date());

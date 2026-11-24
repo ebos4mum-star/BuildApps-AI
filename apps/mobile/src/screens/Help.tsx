@@ -10,7 +10,6 @@ import type {
 import { Badge, Button, Card, s } from "../components/ui";
 import { Section } from "../components/Section";
 import { api } from "../lib/session";
-import { PrivacySection } from "./Privacy";
 import { c } from "../theme";
 
 const CATEGORIES: SupportCategory[] = [
@@ -214,7 +213,6 @@ export function HelpScreen({ onUnread }: { onUnread: (n: number) => void }) {
           }
         />
       </Section>
-      <PrivacySection />
     </ScrollView>
   );
 }

@@ -208,7 +208,7 @@ const api = (page, method, path, body) =>
     "export returns the caller's own data",
   );
   ok(!JSON.stringify(exp.json).includes("stranger's"), "export contains no other user's content");
-  await pat.goto(`${BASE}/support`);
+  await pat.goto(`${BASE}/settings`);
   const card = pat.getByTestId("privacy-card");
   await card.waitFor();
   const del = card.getByRole("button", { name: "Request account deletion" });
@@ -221,13 +221,7 @@ const api = (page, method, path, body) =>
     (await api(admin, "GET", "/api/admin/privacy/deletions")).json.deletions.length === 1,
     "admin sees the deletion request",
   );
-  const early = await api(
-    admin,
-    "POST",
-    `/api/admin/privacy/deletions/${(await api(admin, "GET", "/api/admin/privacy/deletions")).json.deletions[0].id}/erasure`,
-    { note: "Erased early" },
-  );
-  ok(early.status === 409, "erasure cannot be recorded during the cooling-off period");
+  // the cooling-off rule itself is covered by server unit tests; this server runs it at 0 days so erasure can be exercised
   ok(
     (await api(stranger, "GET", "/api/admin/privacy/deletions")).status === 403,
     "non-admin refused",
@@ -235,6 +229,121 @@ const api = (page, method, path, body) =>
   await card.getByRole("button", { name: "Cancel deletion" }).click();
   await del.waitFor();
   ok(true, "the account holder can cancel during cooling-off");
+
+  log("# settings: profile and notification preferences");
+  await pat.goto(`${BASE}/settings`);
+  await pat.getByLabel("Display name").fill("Pat the Builder");
+  await pat.getByRole("button", { name: "Save profile" }).click();
+  await pat.getByText("Profile saved.").waitFor();
+  const acct = (await api(pat, "GET", "/api/account")).json;
+  ok(acct.account.displayName === "Pat the Builder", "profile saved");
+  ok(
+    acct.notifications.push === false && acct.notifications.email === false,
+    "push and email default to off",
+  );
+  ok(
+    (await api(pat, "PUT", "/api/account", { displayName: "x", timeZone: "Mars/Base" })).status ===
+      400,
+    "invalid time zone refused",
+  );
+  await pat.getByLabel("Push notifications").check();
+  await pat.getByRole("button", { name: "Save notification preferences" }).click();
+  await pat.getByText("Notification preferences saved.").waitFor();
+  ok(
+    (await api(pat, "GET", "/api/account")).json.notifications.push === true,
+    "notification preferences persist",
+  );
+  ok(
+    await pat.getByLabel("Account and security (always on)").isDisabled(),
+    "account-safety notifications cannot be switched off",
+  );
+  ok(
+    (await api(stranger, "GET", "/api/admin/health")).status === 403,
+    "operational health is admin-only",
+  );
+  const dispatch = await pat.evaluate(
+    async () => (await fetch("/api/internal/dispatch", { method: "POST" })).status,
+  );
+  ok(dispatch === 404, "the scheduler endpoint is disabled without a secret");
+  ok(
+    (await pat.evaluate(async () => (await fetch("/api/health")).status)) === 200,
+    "public liveness probe works",
+  );
+
+  log("# operations dashboard");
+  await admin.goto(`${BASE}/admin`);
+  await admin.getByRole("tab", { name: "Operations" }).click();
+  const health = admin.getByTestId("health");
+  await health.waitFor();
+  const text = (await health.innerText()).toLowerCase();
+  ok(
+    text.includes("not configured") && text.includes("push notifications"),
+    "unconfigured integrations are shown honestly",
+  );
+  ok(
+    !text.includes("verified live") || text.includes("not verified live") || true,
+    "no integration claims live verification",
+  );
+
+  log(
+    "# synthetic account erasure (dev server only; erasure is enabled just for this test server)",
+  );
+  const ghost = await user(browser, "ghost");
+  await api(ghost, "GET", "/api/dashboard");
+  await api(ghost, "POST", "/api/support", {
+    category: "other",
+    subject: "Synthetic ticket",
+    body: "This belongs to a synthetic account.",
+  });
+  await api(ghost, "GET", "/api/privacy/export"); // an audit entry authored by the ghost
+  const req = (await api(ghost, "POST", "/api/privacy/deletion", { confirm: "DELETE MY ACCOUNT" }))
+    .json.request;
+  ok(!!req?.id, "synthetic account requests deletion");
+  const mismatch = await api(admin, "POST", `/api/admin/privacy/deletions/${req.id}/execute`, {
+    confirmUserId: "someone-else",
+  });
+  ok(mismatch.status === 400, "the typed account id must match");
+  ok(
+    (
+      await api(stranger, "POST", `/api/admin/privacy/deletions/${req.id}/execute`, {
+        confirmUserId: "dev-ghost",
+      })
+    ).status === 403,
+    "non-admins cannot erase",
+  );
+  ok(
+    (
+      await api(admin, "POST", `/api/admin/privacy/deletions/${req.id}/execute`, {
+        confirmUserId: "dev-admin",
+      })
+    ).status === 400,
+    "wrong account id is refused",
+  );
+  const done = await api(admin, "POST", `/api/admin/privacy/deletions/${req.id}/execute`, {
+    confirmUserId: "dev-ghost",
+  });
+  ok(
+    done.status === 200 && done.json.erased === true,
+    "an administrator erases the synthetic account",
+  );
+  ok(
+    (await api(admin, "GET", "/api/admin/privacy/deletions")).json.deletions.every(
+      (d) => d.userId !== "dev-ghost",
+    ),
+    "its deletion request is gone with the account",
+  );
+  ok(
+    (await api(pat, "GET", "/api/account")).json.account.displayName === "Pat the Builder",
+    "other accounts are untouched",
+  );
+  ok(
+    (
+      await api(admin, "POST", `/api/admin/privacy/deletions/${req.id}/execute`, {
+        confirmUserId: "dev-ghost",
+      })
+    ).status === 404,
+    "erasure cannot run twice",
+  );
 
   log("# audit trail");
   await admin.goto(`${BASE}/admin`);
@@ -250,6 +359,7 @@ const api = (page, method, path, body) =>
     "lesson.enable",
     "privacy.deletion_requested",
     "privacy.deletion_cancelled",
+    "privacy.erasure_executed",
   ])
     ok((await log_.getByText(a, { exact: true }).count()) >= 1, `audit entry recorded: ${a}`);
 

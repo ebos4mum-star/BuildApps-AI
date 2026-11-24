@@ -1,5 +1,11 @@
 import type { Answer } from "@buildapps/lessons";
-import type { LearnerProfile, Project, ProjectIntake, ProjectState } from "@buildapps/core";
+import type {
+  LearnerProfile,
+  NotificationPrefs,
+  Project,
+  ProjectIntake,
+  ProjectState,
+} from "@buildapps/core";
 import type { ActionStatus, Platform, ReasonCategory, ReviewOutcome } from "@buildapps/publishing";
 import type {
   AbuseReportRow,
@@ -13,6 +19,8 @@ import type {
   DeletionRequestRow,
   PlacementCheck,
   StoredProfile,
+  HealthReport,
+  AccountInfo,
   UserSummary,
   ActionRow,
   AttemptOutcome,
@@ -68,6 +76,9 @@ export type {
   SupportRow,
   DeletionRequestRow,
   PlacementCheck,
+  HealthReport,
+  AccountInfo,
+  NotificationPrefs,
   StoredProfile,
   LearnerProfile,
   UserSummary,
@@ -425,6 +436,32 @@ export function createApiClient(opts: ApiClientOptions) {
         "POST",
         `/api/placement/${enc(skillId)}`,
         { answers },
+      ),
+
+    // ---- Account and notification settings ----
+    account: () =>
+      call<{
+        account: AccountInfo;
+        notifications: NotificationPrefs;
+        devices: { id: string; platform: string; registeredAt: string }[];
+        providers: { push: string | null; email: string | null };
+      }>("GET", "/api/account"),
+    updateAccount: (v: AccountInfo) =>
+      call<{ account: AccountInfo }>("PUT", "/api/account", v).then((r) => r.account),
+    saveNotificationPrefs: (v: NotificationPrefs) =>
+      call<{ notifications: NotificationPrefs }>("PUT", "/api/account/notifications", v).then(
+        (r) => r.notifications,
+      ),
+    registerDevice: (v: { platform: "ios" | "android" | "web"; token: string }) =>
+      call<{ ok: boolean }>("POST", "/api/account/devices", v),
+    removeDevice: (token: string) =>
+      call<{ ok: boolean }>("POST", "/api/account/devices/remove", { token }),
+    adminHealth: () => call<HealthReport>("GET", "/api/admin/health"),
+    adminExecuteErasure: (id: string, confirmUserId: string) =>
+      call<{ erased: boolean; userId: string }>(
+        "POST",
+        `/api/admin/privacy/deletions/${enc(id)}/execute`,
+        { confirmUserId },
       ),
 
     // ---- Privacy (every signed-in user) ----

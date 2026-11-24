@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { FakeGitHubGateway, GitHubAppGateway, type GitHubGateway } from "@buildapps/github";
 import {
+  expoPushProvider,
+  webhookEmailProvider,
   createMemoryStores,
   createSupabaseStores,
   verifyAccessToken,
@@ -71,7 +73,23 @@ export function getDeps(): Deps {
   const gateway = getGateway();
   if (gateway && stateSecret.length < 32)
     throw new Error("GITHUB_STATE_SECRET must be at least 32 characters");
-  return { stores: getStores(), gateway, stateSecret };
+  const e = process.env;
+  const notifications: NonNullable<Deps["notifications"]> = {};
+  // Delivery adapters are created ONLY when an operator configures them; never by default.
+  if (e.PUSH_PROVIDER === "expo") notifications.push = expoPushProvider(fetch, e.EXPO_ACCESS_TOKEN);
+  if (e.EMAIL_WEBHOOK_URL && e.EMAIL_WEBHOOK_SECRET)
+    notifications.email = webhookEmailProvider(e.EMAIL_WEBHOOK_URL, e.EMAIL_WEBHOOK_SECRET);
+  return {
+    stores: getStores(),
+    gateway,
+    stateSecret,
+    notifications,
+    // account erasure is OFF unless explicitly enabled by the operator
+    allowErasure: e.ALLOW_ACCOUNT_ERASURE === "1",
+    ...(devBackend && e.DEV_COOLING_OFF_DAYS
+      ? { coolingOffDays: Number(e.DEV_COOLING_OFF_DAYS) }
+      : {}),
+  };
 }
 
 /** Returns the authenticated user id for a bearer token, or null. */

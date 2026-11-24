@@ -66,7 +66,9 @@ export async function requestAccountDeletion(d: Deps, userId: string, input: unk
   if (await d.stores.ops.getPendingDeletion(userId))
     throw new WorkspaceError("conflict", "A deletion request is already pending");
   const now = nowOf(d);
-  const notBefore = new Date(now.getTime() + DELETION_COOLING_OFF_DAYS * 86_400_000);
+  const notBefore = new Date(
+    now.getTime() + (d.coolingOffDays ?? DELETION_COOLING_OFF_DAYS) * 86_400_000,
+  );
   const row = await d.stores.ops.createDeletionRequest(
     userId,
     { reason: v.reason ?? null, notBefore },

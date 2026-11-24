@@ -10,7 +10,6 @@ import type {
 } from "@buildapps/api-client";
 import Link from "next/link";
 import { EmptyState } from "@/components/Illustration";
-import { PrivacyCard } from "@/components/PrivacyCard";
 
 const CATEGORIES: SupportCategory[] = [
   "account",
@@ -66,6 +65,10 @@ export default function SupportPage() {
   return (
     <>
       <h1>Help &amp; notifications</h1>
+      <p className="muted">
+        Profile, notification preferences, data export and account deletion are in{" "}
+        <Link href="/settings">Settings</Link>.
+      </p>
       {err && (
         <div className="err" role="alert">
           {err}
@@ -234,7 +237,6 @@ export default function SupportPage() {
           <button className="btn danger small">Submit report</button>
         </p>
       </form>
-      <PrivacyCard />
     </>
   );
 }

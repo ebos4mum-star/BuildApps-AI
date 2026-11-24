@@ -6,6 +6,7 @@ import type {
   AdminOverview,
   AuditRow,
   DeletionRequestRow,
+  HealthReport,
   SupportRow,
   UserSummary,
 } from "@buildapps/api-client";
@@ -43,6 +44,7 @@ export function AdminOps() {
   return (
     <View>
       <OverviewSection />
+      <HealthSection />
       <UsersSection />
       <SupportSection />
       <ReportsSection />
@@ -299,6 +301,15 @@ function PrivacySection() {
     true,
   );
   const [note, setNote] = useState<Record<string, string>>({});
+  const [confirmId, setConfirmId] = useState<Record<string, string>>({});
+  async function execute(r: DeletionRequestRow) {
+    try {
+      await api.adminExecuteErasure(r.id, confirmId[r.id] ?? "");
+      await reload();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed");
+    }
+  }
   async function record(r: DeletionRequestRow) {
     try {
       await api.adminRecordErasure(r.id, note[r.id] ?? "");
@@ -330,7 +341,25 @@ function PrivacySection() {
                     value={note[r.id] ?? ""}
                     onChangeText={(t) => setNote({ ...note, [r.id]: t })}
                   />
-                  <Button title="Record erasure" kind="danger" onPress={() => void record(r)} />
+                  <Button
+                    title="Record erasure done elsewhere"
+                    kind="danger"
+                    onPress={() => void record(r)}
+                  />
+                  <TextInput
+                    style={s.input}
+                    accessibilityLabel="Type the account id to erase"
+                    placeholder={`Type ${r.userId} to erase now`}
+                    autoCapitalize="none"
+                    value={confirmId[r.id] ?? ""}
+                    onChangeText={(t) => setConfirmId({ ...confirmId, [r.id]: t })}
+                  />
+                  <Button
+                    title="Erase account permanently"
+                    kind="danger"
+                    disabled={(confirmId[r.id] ?? "") !== r.userId}
+                    onPress={() => void execute(r)}
+                  />
                 </>
               ) : (
                 <Text style={s.muted}>Cooling-off period still running.</Text>
@@ -339,6 +368,41 @@ function PrivacySection() {
           </Card>
         );
       })}
+    </Section>
+  );
+}
+
+function HealthSection() {
+  const { data, err } = useOps<HealthReport>(() => api.adminHealth(), true);
+  return (
+    <Section title="Operations">
+      <ErrText msg={err} />
+      {data ? (
+        <View style={{ gap: 6 }}>
+          {data.attention.length === 0 ? (
+            <Badge text="Nothing needs attention" tone="ok" />
+          ) : (
+            data.attention.map((a) => (
+              <Text key={a} style={s.text}>
+                Attention: {a}
+              </Text>
+            ))
+          )}
+          {data.integrations.map((i) => (
+            <Text key={i.id} style={s.text}>
+              {i.label}:{" "}
+              {i.status === "configured" ? "configured (not verified live)" : "not configured"}
+              {"\n"}
+              <Text style={s.muted}>{i.note}</Text>
+            </Text>
+          ))}
+          <Text style={s.muted}>
+            Queue: {data.notifications.pending} pending, {data.notifications.failed} failed. Support
+            open: {data.support.open}. Deletions pending: {data.privacy.pendingDeletions}. Erasure{" "}
+            {data.privacy.erasureEnabled ? "enabled" : "disabled"}.
+          </Text>
+        </View>
+      ) : null}
     </Section>
   );
 }

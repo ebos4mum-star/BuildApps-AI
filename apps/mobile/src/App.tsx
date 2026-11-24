@@ -5,6 +5,7 @@ import { LearnScreen } from "./screens/Learn";
 import { LessonScreen } from "./screens/Lesson";
 import { AdminScreen } from "./screens/Admin";
 import { HelpScreen } from "./screens/Help";
+import { SettingsScreen } from "./screens/Settings";
 import { ExpertScreen } from "./screens/Expert";
 import { LoginScreen } from "./screens/Login";
 import { OnboardingScreen } from "./screens/Onboarding";
@@ -24,6 +25,7 @@ type Screen =
   | { name: "expert" }
   | { name: "admin" }
   | { name: "help" }
+  | { name: "settings" }
   | { name: "new" }
   | { name: "project"; id: string };
 
@@ -56,7 +58,10 @@ export default function App() {
   }, []);
 
   if (authed === null) return <View style={{ flex: 1, backgroundColor: c.bg }} />;
-  const tab = (name: "learn" | "projects" | "expert" | "help" | "admin", label: string) => (
+  const tab = (
+    name: "learn" | "projects" | "expert" | "help" | "settings" | "admin",
+    label: string,
+  ) => (
     <Text
       onPress={() =>
         setScreen(
@@ -68,7 +73,9 @@ export default function App() {
                 ? { name: "expert" }
                 : name === "help"
                   ? { name: "help" }
-                  : { name: "admin" },
+                  : name === "settings"
+                    ? { name: "settings" }
+                    : { name: "admin" },
         )
       }
       accessibilityRole="tab"
@@ -103,6 +110,7 @@ export default function App() {
               {tab("projects", "Projects")}
               {tab("expert", "Expert")}
               {tab("help", unread > 0 ? `Help (${unread})` : "Help")}
+              {tab("settings", "Settings")}
               {admin ? tab("admin", "Admin") : null}
               <View style={{ flex: 1 }} />
               <View style={{ width: 110, paddingRight: 8 }}>
@@ -154,6 +162,9 @@ export default function App() {
             {screen.name === "expert" && <ExpertScreen />}
             {screen.name === "admin" && <AdminScreen />}
             {screen.name === "help" && <HelpScreen onUnread={setUnread} />}
+            {screen.name === "settings" && (
+              <SettingsScreen onEditPlan={() => setScreen({ name: "onboarding" })} />
+            )}
             {screen.name === "projects" && (
               <ProjectsList
                 onNew={() => setScreen({ name: "new" })}

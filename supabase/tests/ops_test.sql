@@ -68,3 +68,54 @@ select pg_temp.expect_fail($$update public.learner_profiles set placed_out = '{b
 select set_config('request.jwt.claim.sub', '92000000-0000-0000-0000-000000000002', false);
 select pg_temp.expect_rows($$select 1 from public.learner_profiles$$, 0, 'strangers see no profiles');
 reset role;
+
+-- Notification prefs, devices and outbox
+reset role;
+set role service_role;
+insert into public.notification_prefs (user_id, push, quiet_start, quiet_end) values ('91000000-0000-0000-0000-000000000001', true, 22, 7);
+insert into public.device_tokens (user_id, platform, token) values ('91000000-0000-0000-0000-000000000001', 'ios', 'ExponentPushToken[abcdefgh]');
+insert into public.notification_outbox (user_id, channel, category, title, dedupe_key) values ('91000000-0000-0000-0000-000000000001', 'push', 'learning_reminder', 'Time to practise', 'reminder:u1:2026-03-10');
+select pg_temp.expect_fail($$insert into public.notification_outbox (user_id, channel, category, title, dedupe_key) values ('91000000-0000-0000-0000-000000000001', 'push', 'learning_reminder', 'Again', 'reminder:u1:2026-03-10')$$, 'dedupe key makes enqueue idempotent');
+select pg_temp.expect_fail($$insert into public.notification_outbox (user_id, channel, category, title) values ('91000000-0000-0000-0000-000000000001', 'sms', 'project', 'x')$$, 'unknown channel');
+select pg_temp.expect_fail($$insert into public.notification_prefs (user_id, quiet_start) values ('92000000-0000-0000-0000-000000000002', 5)$$, 'quiet hours need both ends');
+reset role;
+set role authenticated;
+select set_config('request.jwt.claim.sub', '91000000-0000-0000-0000-000000000001', false);
+select pg_temp.expect_rows($$select 1 from public.notification_prefs$$, 1, 'owner reads own prefs');
+select pg_temp.expect_fail($$select 1 from public.device_tokens$$, 'device tokens are server-only');
+select pg_temp.expect_fail($$select 1 from public.notification_outbox$$, 'outbox is server-only');
+select set_config('request.jwt.claim.sub', '92000000-0000-0000-0000-000000000002', false);
+select pg_temp.expect_rows($$select 1 from public.notification_prefs$$, 0, 'strangers read no prefs');
+reset role;
+
+-- Erasure: deleting an auth user removes everything they own and keeps the audit trail (synthetic user only)
+reset role;
+insert into auth.users (id) values ('93000000-0000-0000-0000-000000000003');
+set role service_role;
+insert into public.support_requests (user_id, category, subject, body) values ('93000000-0000-0000-0000-000000000003', 'other', 'Synthetic ticket', 'This belongs to a synthetic account.');
+insert into public.notifications (user_id, kind, title) values ('93000000-0000-0000-0000-000000000003', 'support', 'Hi');
+insert into public.learner_profiles (user_id, experience, goals, tools, intent, pace) values ('93000000-0000-0000-0000-000000000003', 'new', '{ship_first_app}', '{cursor}', 'start', 'light');
+insert into public.deletion_requests (user_id, not_before) values ('93000000-0000-0000-0000-000000000003', now());
+insert into public.notification_prefs (user_id) values ('93000000-0000-0000-0000-000000000003');
+insert into public.device_tokens (user_id, platform, token) values ('93000000-0000-0000-0000-000000000003', 'android', 'synthetic-token-12345');
+insert into public.notification_outbox (user_id, channel, category, title) values ('93000000-0000-0000-0000-000000000003', 'email', 'project', 'Hi');
+insert into public.admin_audit (actor_id, action, target_type, target_id) values ('93000000-0000-0000-0000-000000000003', 'synthetic.action', 'user', '93000000-0000-0000-0000-000000000003');
+reset role;
+delete from auth.users where id = '93000000-0000-0000-0000-000000000003';
+set role service_role;
+select pg_temp.expect_rows($$select 1 from public.support_requests where user_id = '93000000-0000-0000-0000-000000000003'$$, 0, 'erasure removes support requests');
+select pg_temp.expect_rows($$select 1 from public.notifications where user_id = '93000000-0000-0000-0000-000000000003'$$, 0, 'erasure removes notifications');
+select pg_temp.expect_rows($$select 1 from public.learner_profiles where user_id = '93000000-0000-0000-0000-000000000003'$$, 0, 'erasure removes the learner profile');
+select pg_temp.expect_rows($$select 1 from public.deletion_requests where user_id = '93000000-0000-0000-0000-000000000003'$$, 0, 'erasure removes the deletion request');
+select pg_temp.expect_rows($$select 1 from public.device_tokens where user_id = '93000000-0000-0000-0000-000000000003'$$, 0, 'erasure removes device tokens');
+select pg_temp.expect_rows($$select 1 from public.notification_outbox where user_id = '93000000-0000-0000-0000-000000000003'$$, 0, 'erasure removes queued messages');
+select pg_temp.expect_rows($$select 1 from public.admin_audit where action = 'synthetic.action' and actor_id is null$$, 1, 'the audit trail survives with the actor anonymised');
+reset role;
+
+-- the audit log is still immutable for everything except actor anonymisation
+set role service_role;
+insert into public.admin_audit (actor_id, action, target_type, target_id) values (null, 'immutable.check', 'user', 'x');
+select pg_temp.expect_fail($$update public.admin_audit set action = 'tampered' where action = 'immutable.check'$$, 'audit rows cannot be edited');
+select pg_temp.expect_fail($$update public.admin_audit set actor_id = '91000000-0000-0000-0000-000000000001' where action = 'immutable.check'$$, 'audit actor cannot be re-pointed');
+select pg_temp.expect_fail($$delete from public.admin_audit where action = 'immutable.check'$$, 'audit rows cannot be deleted');
+reset role;

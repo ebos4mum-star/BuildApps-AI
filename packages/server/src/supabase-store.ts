@@ -1,5 +1,6 @@
 import { SupabaseOpsStore } from "./ops-supabase-store";
 import { SupabaseProfileStore } from "./profile-store";
+import { SupabaseAccountStore } from "./account-supabase-store";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Milestone,
@@ -399,4 +400,5 @@ export const createSupabaseStores = (serviceClient: SupabaseClient): Stores => (
   publishing: new SupabasePublishingStore(serviceClient),
   ops: new SupabaseOpsStore(serviceClient),
   profiles: new SupabaseProfileStore(serviceClient),
+  account: new SupabaseAccountStore(serviceClient),
 });

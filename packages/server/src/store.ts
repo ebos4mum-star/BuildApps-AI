@@ -2,6 +2,7 @@ import type { LearnerProfile, Project, RepoRef, StreakState } from "@buildapps/c
 import type { GitHubStore, RescueStore, ScanStore } from "./batch2-types";
 import type { PublishingStore } from "./publishing-types";
 import type { OpsStore } from "./ops-types";
+import type { AccountStore } from "./account-types";
 
 /** Everything the attempt service needs to know about a user, loaded in one go. */
 export interface ProgressState {
@@ -96,6 +97,7 @@ export interface ProfileStore {
 
 export interface Stores {
   profiles: ProfileStore;
+  account: AccountStore;
   progress: ProgressStore;
   projects: ProjectStore;
   github: GitHubStore;

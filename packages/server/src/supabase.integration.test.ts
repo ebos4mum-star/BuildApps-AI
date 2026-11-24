@@ -51,6 +51,13 @@ import {
   cancelAccountDeletion,
   exportMyData,
   adminListDeletions,
+  adminExecuteErasure,
+  dispatchOutbox,
+  registerDevice,
+  saveNotificationPrefs,
+  notify,
+  updateAccount,
+  getAccountView,
   getPublishing,
   getWorkspace,
   grantHandoff,
@@ -886,4 +893,118 @@ describe.skipIf(!enabled)("real Supabase integration", () => {
       false,
     );
   }, 60_000);
+
+  it("account settings, notification delivery and synthetic-account erasure on the real stack", async () => {
+    const st = createSupabaseStores(admin);
+    const deps: Deps = {
+      stores: st,
+      gateway: null,
+      stateSecret: "s".repeat(32),
+      allowErasure: true,
+      coolingOffDays: 0,
+    };
+    const boss = await makeUser();
+    await admin.from("admins").insert({ user_id: boss.id });
+    const victim = await makeUser(); // synthetic account created by this test only
+    const bystander = await makeUser();
+
+    // settings
+    await updateAccount(deps, victim.id, {
+      displayName: "Synthetic Sam",
+      timeZone: "Europe/London",
+    });
+    expect((await getAccountView(deps, victim.id)).account).toEqual({
+      displayName: "Synthetic Sam",
+      timeZone: "Europe/London",
+    });
+    await saveNotificationPrefs(deps, victim.id, {
+      push: true,
+      email: false,
+      categories: {},
+      quietHours: null,
+    });
+    expect((await victim.client.from("notification_prefs").select("user_id")).data).toHaveLength(1); // RLS: own
+    expect((await bystander.client.from("notification_prefs").select("user_id")).data).toEqual([]);
+    await registerDevice(deps, victim.id, {
+      platform: "ios",
+      token: "ExponentPushToken[synthetic-12345]",
+    });
+    expect((await victim.client.from("device_tokens").select("id")).error).not.toBeNull(); // tokens are server-only
+
+    // delivery with a fake provider; dedupe by key; failure handling
+    const sent: string[] = [];
+    await notify(deps, victim.id, { kind: "support", title: "Reply from support" });
+    const r1 = await dispatchOutbox(deps, {
+      push: { name: "fake", send: async (m) => (sent.push(m.title), { ok: true }) },
+    });
+    expect(r1.sent).toBe(1);
+    expect(sent).toEqual(["Reply from support"]);
+    expect(
+      await st.account.enqueue(
+        { userId: victim.id, channel: "push", category: "project", title: "x", dedupeKey: "k1" },
+        new Date(),
+      ),
+    ).toBe("queued");
+    expect(
+      await st.account.enqueue(
+        { userId: victim.id, channel: "push", category: "project", title: "x", dedupeKey: "k1" },
+        new Date(),
+      ),
+    ).toBe("duplicate");
+    expect((await st.account.outboxStats(new Date())).sentLast24h).toBeGreaterThanOrEqual(1);
+
+    // erasure: needs a pending request; an admin-authored audit row must survive with the actor removed
+    const { requestAccountDeletion } = await import("./index");
+    await saveMyProfile(deps, victim.id, {
+      experience: "new",
+      goals: ["ship_first_app"],
+      tools: ["cursor"],
+      intent: "learn_first",
+      pace: "light",
+      projectTypes: [],
+      platforms: [],
+      reminders: { enabled: false, hour: 18 },
+    });
+    const req = await requestAccountDeletion(deps, victim.id, { confirm: "DELETE MY ACCOUNT" });
+    await createSupportRequest(deps, victim.id, {
+      category: "other",
+      subject: "Synthetic ticket",
+      body: "This belongs to a synthetic account.",
+    });
+    await expect(
+      adminExecuteErasure(deps, boss.id, req.id, { confirmUserId: bystander.id }),
+    ).rejects.toThrow();
+    const out = await adminExecuteErasure(deps, boss.id, req.id, { confirmUserId: victim.id });
+    expect(out.erased).toBe(true);
+    expect((await admin.auth.admin.getUserById(victim.id)).data.user).toBeNull();
+    for (const [table, col] of [
+      ["profiles", "id"],
+      ["learner_profiles", "user_id"],
+      ["support_requests", "user_id"],
+      ["notifications", "user_id"],
+      ["notification_prefs", "user_id"],
+      ["device_tokens", "user_id"],
+      ["notification_outbox", "user_id"],
+      ["deletion_requests", "user_id"],
+    ] as const) {
+      const { data } = await admin.from(table).select(col).eq(col, victim.id);
+      expect(data, table).toEqual([]);
+    }
+    // the bystander is untouched and the audit trail kept the erasure record
+    expect((await admin.auth.admin.getUserById(bystander.id)).data.user).not.toBeNull();
+    const audit = await admin
+      .from("admin_audit")
+      .select("*")
+      .eq("action", "privacy.erasure_executed")
+      .eq("target_id", victim.id);
+    expect(audit.data).toHaveLength(1);
+    expect(audit.data![0].actor_id).toBe(boss.id);
+    const authored = await admin
+      .from("admin_audit")
+      .select("actor_id")
+      .eq("action", "account.update")
+      .eq("target_id", victim.id);
+    expect(authored.data!.length).toBeGreaterThan(0);
+    expect(authored.data!.every((a) => a.actor_id === null)).toBe(true); // authorship removed, entry kept
+  }, 90_000);
 });

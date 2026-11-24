@@ -54,3 +54,5 @@ export type {
   SupportStatus,
   UserSummary,
 } from "./ops-types";
+export type { HealthReport } from "./health-service";
+export type { AccountInfo } from "./account-types";

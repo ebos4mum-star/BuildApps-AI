@@ -4,6 +4,7 @@ import { api, type ExpertRow, type ServiceRequestRow } from "@/lib/api-types";
 import {
   AuditPanel,
   ContentPanel,
+  HealthPanel,
   OverviewPanel,
   PrivacyPanel,
   ReportsPanel,
@@ -13,6 +14,7 @@ import {
 
 const TABS = [
   ["overview", "Overview"],
+  ["health", "Operations"],
   ["vetting", "Experts & requests"],
   ["users", "Users"],
   ["support", "Support"],
@@ -91,6 +93,7 @@ export default function AdminPage() {
         ))}
       </div>
       {tab === "overview" && <OverviewPanel />}
+      {tab === "health" && <HealthPanel />}
       {tab === "users" && <UsersPanel />}
       {tab === "support" && <SupportPanel />}
       {tab === "reports" && <ReportsPanel />}

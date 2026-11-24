@@ -248,4 +248,13 @@ export class MemoryOpsStore implements OpsStore {
     });
     return row;
   }
+  /** Erasure: drop everything the user owns; audit entries stay, anonymised. */
+  eraseUserData(userId: string) {
+    for (const [id, r] of this.support) if (r.userId === userId) this.support.delete(id);
+    for (const [id, r] of this.reports) if (r.reporterId === userId) this.reports.delete(id);
+    this.notifications = this.notifications.filter((n) => n.userId !== userId);
+    this.deletions = this.deletions.filter((d) => d.userId !== userId);
+    this.suspended.delete(userId);
+    this.audit = this.audit.map((a) => (a.actorId === userId ? { ...a, actorId: null } : a));
+  }
 }
