@@ -20,3 +20,4 @@ export * from "./publishing-service";
 export * from "./ops-types";
 export * from "./ops-memory-store";
 export * from "./ops-service";
+export * from "./privacy-service";

@@ -4,6 +4,7 @@ import type {
   AbuseReportRow,
   AuditRow,
   ContentFlagRow,
+  DeletionRequestRow,
   NotificationRow,
   OpsCounts,
   OpsStore,
@@ -18,6 +19,7 @@ export class MemoryOpsStore implements OpsStore {
   reports = new Map<string, AbuseReportRow>();
   flags = new Map<string, ContentFlagRow>();
   notifications: NotificationRow[] = [];
+  deletions: DeletionRequestRow[] = [];
   private seq = 0;
   constructor(private db: MemoryDb) {}
 
@@ -192,5 +194,58 @@ export class MemoryOpsStore implements OpsStore {
         n++;
       }
     return n;
+  }
+  async createDeletionRequest(
+    userId: string,
+    v: { reason: string | null; notBefore: Date },
+    now: Date,
+  ) {
+    if (this.deletions.some((d) => d.userId === userId && d.status === "pending"))
+      throw new Error("create deletion request: duplicate pending request");
+    const row: DeletionRequestRow = {
+      id: randomUUID(),
+      userId,
+      status: "pending",
+      reason: v.reason,
+      requestedAt: now.toISOString(),
+      notBefore: v.notBefore.toISOString(),
+      resolvedAt: null,
+      resolvedBy: null,
+      note: null,
+    };
+    this.deletions.push(row);
+    return row;
+  }
+  async getPendingDeletion(userId: string) {
+    return this.deletions.find((d) => d.userId === userId && d.status === "pending") ?? null;
+  }
+  async latestDeletion(userId: string) {
+    return (
+      [...this.deletions]
+        .filter((d) => d.userId === userId)
+        .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt))[0] ?? null
+    );
+  }
+  async getDeletion(id: string) {
+    return this.deletions.find((d) => d.id === id) ?? null;
+  }
+  async listDeletions(status?: DeletionRequestRow["status"]) {
+    return this.deletions
+      .filter((d) => !status || d.status === status)
+      .sort((a, b) => a.requestedAt.localeCompare(b.requestedAt));
+  }
+  async resolveDeletion(
+    id: string,
+    patch: { status: "cancelled" | "fulfilled"; note: string | null; resolvedBy: string | null },
+    now: Date,
+  ) {
+    const row = this.deletions.find((d) => d.id === id)!;
+    Object.assign(row, {
+      status: patch.status,
+      note: patch.note,
+      resolvedBy: patch.resolvedBy,
+      resolvedAt: now.toISOString(),
+    });
+    return row;
   }
 }

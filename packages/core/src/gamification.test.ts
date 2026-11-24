@@ -17,6 +17,9 @@ const stats: UserStats = {
   skillsAtAdvanced: 0,
   verifiedMilestones: 0,
   verifiedProjectsCompleted: 0,
+  debugCasesCompleted: 0,
+  guidedProjectsCompleted: 0,
+  pathsCompleted: 0,
   totalXp: 25,
 };
 
@@ -98,5 +101,19 @@ describe("periodic quests", () => {
       "UTC",
     );
     expect(s.progress).toBe(2);
+  });
+});
+
+describe("learning-content achievements", () => {
+  it("are earned from debug cases, guided projects and completed paths", () => {
+    const ids = (s: Partial<UserStats>) =>
+      evaluateAchievements({ ...stats, exercisesCompleted: 0, ...s }, new Set()).map((a) => a.id);
+    expect(ids({ debugCasesCompleted: 1 })).toContain("case-closed");
+    expect(ids({ debugCasesCompleted: 5 })).toContain("detective");
+    expect(ids({ guidedProjectsCompleted: 3 })).toEqual(
+      expect.arrayContaining(["first-guided-project", "all-guided-projects"]),
+    );
+    expect(ids({ pathsCompleted: 1 })).toContain("path-graduate");
+    expect(ids({})).not.toContain("case-closed");
   });
 });

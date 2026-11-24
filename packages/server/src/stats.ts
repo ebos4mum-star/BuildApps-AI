@@ -9,14 +9,21 @@ import {
   type UserStats,
   type XpAward,
 } from "@buildapps/core";
-import { curriculum, evidenceFromPassed } from "@buildapps/lessons";
+import { buildLearningPath, curriculum, evidenceFromPassed } from "@buildapps/lessons";
 import type { ProgressState, ProgressStore } from "./store";
 
 const rank = (l: string) => SKILL_LEVELS.indexOf(l as (typeof SKILL_LEVELS)[number]);
 
 export function statsFromState(s: ProgressState, extraXp = 0): UserStats {
   const tree = computeSkillTree(curriculum.skills, evidenceFromPassed(s.passedExerciseIds));
+  const doneLessons = curriculum.lessons.filter((l) =>
+    l.exercises.every((e) => s.passedExerciseIds.has(e.id)),
+  );
+  const path = buildLearningPath(s.passedExerciseIds);
   return {
+    debugCasesCompleted: doneLessons.filter((l) => l.kind === "debug_challenge").length,
+    guidedProjectsCompleted: doneLessons.filter((l) => l.kind === "guided_project").length,
+    pathsCompleted: path.paths.filter((p) => p.lessonsDone === p.lessonsTotal).length,
     exercisesCompleted: s.passedExerciseIds.size,
     currentStreak: s.streak.current,
     longestStreak: s.streak.longest,

@@ -48,6 +48,7 @@ export type {
   ReportTarget,
   SupportCategory,
   SupportRow,
+  DeletionRequestRow,
   SupportStatus,
   UserSummary,
 } from "./ops-types";

@@ -13,7 +13,6 @@ import {
   type AwardRequest,
   type AwardResult,
   type SkillLevel,
-  type UserStats,
   type XpAward,
 } from "@buildapps/core";
 import {
@@ -24,6 +23,7 @@ import {
   isExerciseUnlocked,
   type GradeResult,
 } from "@buildapps/lessons";
+import { statsFromState } from "./stats";
 import type { ProgressState, ProgressStore } from "./store";
 
 export class AttemptError extends Error {
@@ -160,18 +160,10 @@ export async function submitAttempt(
 
     // 4) achievements from the post-attempt snapshot
     const xpNow = state.totalXp + awards.reduce((s, a) => s + a.xp, 0);
-    const stats: UserStats = {
-      exercisesCompleted: passedAfter.size,
-      currentStreak: streak.current,
-      longestStreak: streak.longest,
-      skillsAtIntermediate: [...afterTree.values()].filter(
-        (s) => rank(s.level) >= rank("intermediate"),
-      ).length,
-      skillsAtAdvanced: [...afterTree.values()].filter((s) => s.level === "advanced").length,
-      verifiedMilestones: state.verifiedMilestones,
-      verifiedProjectsCompleted: state.verifiedProjectsCompleted,
-      totalXp: xpNow,
-    };
+    const stats = statsFromState(
+      { ...state, passedExerciseIds: passedAfter, streak },
+      xpNow - state.totalXp,
+    );
     const earned = evaluateAchievements(stats, state.earnedAchievements);
     for (const a of earned) {
       collect(rewardAward(input.userId, "achievement", a.id, a.rewardXp, now), 0);

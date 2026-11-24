@@ -3,6 +3,7 @@ import type {
   AbuseReportRow,
   AuditRow,
   ContentFlagRow,
+  DeletionRequestRow,
   NotificationRow,
   OpsCounts,
   OpsStore,
@@ -26,6 +27,17 @@ const toSupport = (r: R): SupportRow => ({
   handledBy: r.handled_by,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
+});
+const toDeletion = (r: R): DeletionRequestRow => ({
+  id: r.id,
+  userId: r.user_id,
+  status: r.status,
+  reason: r.reason,
+  requestedAt: r.requested_at,
+  notBefore: r.not_before,
+  resolvedAt: r.resolved_at,
+  resolvedBy: r.resolved_by,
+  note: r.note,
 });
 const toReport = (r: R): AbuseReportRow => ({
   id: r.id,
@@ -355,5 +367,78 @@ export class SupabaseOpsStore implements OpsStore {
     const { data, error } = await q.select("id");
     fail("mark notifications read", error);
     return (data ?? []).length;
+  }
+  async createDeletionRequest(
+    userId: string,
+    v: { reason: string | null; notBefore: Date },
+    now: Date,
+  ) {
+    const { data, error } = await this.db
+      .from("deletion_requests")
+      .insert({
+        user_id: userId,
+        reason: v.reason,
+        requested_at: now.toISOString(),
+        not_before: v.notBefore.toISOString(),
+      })
+      .select()
+      .single();
+    fail("create deletion request", error);
+    return toDeletion(data);
+  }
+  async getPendingDeletion(userId: string) {
+    const { data, error } = await this.db
+      .from("deletion_requests")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("status", "pending")
+      .maybeSingle();
+    fail("get pending deletion", error);
+    return data ? toDeletion(data) : null;
+  }
+  async latestDeletion(userId: string) {
+    const { data, error } = await this.db
+      .from("deletion_requests")
+      .select("*")
+      .eq("user_id", userId)
+      .order("requested_at", { ascending: false })
+      .limit(1);
+    fail("latest deletion", error);
+    return data?.[0] ? toDeletion(data[0]) : null;
+  }
+  async getDeletion(id: string) {
+    const { data, error } = await this.db
+      .from("deletion_requests")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    fail("get deletion", error);
+    return data ? toDeletion(data) : null;
+  }
+  async listDeletions(status?: DeletionRequestRow["status"]) {
+    let q = this.db.from("deletion_requests").select("*").order("requested_at");
+    if (status) q = q.eq("status", status);
+    const { data, error } = await q;
+    fail("list deletions", error);
+    return (data ?? []).map(toDeletion);
+  }
+  async resolveDeletion(
+    id: string,
+    patch: { status: "cancelled" | "fulfilled"; note: string | null; resolvedBy: string | null },
+    now: Date,
+  ) {
+    const { data, error } = await this.db
+      .from("deletion_requests")
+      .update({
+        status: patch.status,
+        note: patch.note,
+        resolved_by: patch.resolvedBy,
+        resolved_at: now.toISOString(),
+      })
+      .eq("id", id)
+      .select()
+      .single();
+    fail("resolve deletion", error);
+    return toDeletion(data);
   }
 }

@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   adminListAudit,
+  adminListDeletions,
+  adminRecordErasure,
   adminListContent,
   adminListReports,
   adminListSupport,
@@ -33,6 +35,12 @@ export const { GET, POST, PUT, PATCH, DELETE } = makeRouter({
   }),
   "POST /users/:id/suspension": async ({ userId, params, body }) => ({
     user: await adminSetSuspension(getDeps(), userId, params.id!, body),
+  }),
+  "GET /privacy/deletions": async ({ userId, query }) => ({
+    deletions: await adminListDeletions(getDeps(), userId, query.get("status") ?? undefined),
+  }),
+  "POST /privacy/deletions/:id/erasure": async ({ userId, params, body }) => ({
+    deletion: await adminRecordErasure(getDeps(), userId, params.id!, body),
   }),
   "GET /support": async ({ userId, query }) => ({
     support: await adminListSupport(getDeps(), userId, query.get("status") ?? undefined),

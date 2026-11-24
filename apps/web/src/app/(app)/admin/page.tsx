@@ -5,6 +5,7 @@ import {
   AuditPanel,
   ContentPanel,
   OverviewPanel,
+  PrivacyPanel,
   ReportsPanel,
   SupportPanel,
   UsersPanel,
@@ -17,6 +18,7 @@ const TABS = [
   ["support", "Support"],
   ["reports", "Abuse reports"],
   ["content", "Learning content"],
+  ["privacy", "Privacy"],
   ["audit", "Audit log"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
@@ -93,6 +95,7 @@ export default function AdminPage() {
       {tab === "support" && <SupportPanel />}
       {tab === "reports" && <ReportsPanel />}
       {tab === "content" && <ContentPanel />}
+      {tab === "privacy" && <PrivacyPanel />}
       {tab === "audit" && <AuditPanel />}
       {tab === "vetting" && (
         <>

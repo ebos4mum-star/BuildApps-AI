@@ -10,6 +10,7 @@ import type {
   ReportTarget,
   SupportCategory,
   SupportRow,
+  DeletionRequestRow,
   UserSummary,
   ActionRow,
   AttemptOutcome,
@@ -63,6 +64,7 @@ export type {
   ReportTarget,
   SupportCategory,
   SupportRow,
+  DeletionRequestRow,
   UserSummary,
   ActionRow,
   AttemptOutcome,
@@ -406,6 +408,32 @@ export function createApiClient(opts: ApiClientOptions) {
         disabled,
         ...(note ? { note } : {}),
       }).then((r) => r.flag),
+    // ---- Privacy (every signed-in user) ----
+    exportMyData: () => call<Record<string, unknown>>("GET", "/api/privacy/export"),
+    myDeletion: () =>
+      call<{ request: DeletionRequestRow | null }>("GET", "/api/privacy/deletion").then(
+        (r) => r.request,
+      ),
+    requestDeletion: (v: { confirm: string; reason?: string }) =>
+      call<{ request: DeletionRequestRow }>("POST", "/api/privacy/deletion", v).then(
+        (r) => r.request,
+      ),
+    cancelDeletion: () =>
+      call<{ request: DeletionRequestRow }>("DELETE", "/api/privacy/deletion").then(
+        (r) => r.request,
+      ),
+    adminDeletions: (status?: DeletionRequestRow["status"]) =>
+      call<{ deletions: DeletionRequestRow[] }>(
+        "GET",
+        `/api/admin/privacy/deletions${status ? `?status=${status}` : ""}`,
+      ).then((r) => r.deletions),
+    adminRecordErasure: (id: string, note: string) =>
+      call<{ deletion: DeletionRequestRow }>(
+        "POST",
+        `/api/admin/privacy/deletions/${enc(id)}/erasure`,
+        { note },
+      ).then((r) => r.deletion),
+
     // ---- Support, reporting, notifications (every signed-in user) ----
     mySupport: () => call<{ support: SupportRow[] }>("GET", "/api/support").then((r) => r.support),
     createSupport: (v: { category: SupportCategory; subject: string; body: string }) =>

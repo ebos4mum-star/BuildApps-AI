@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api-types";
 import type {
+  DeletionRequestRow,
   AbuseReportRow,
   AdminLesson,
   AdminOverview,
@@ -324,6 +325,62 @@ export function AuditPanel() {
           </li>
         ))}
       </ul>
+    </>
+  );
+}
+
+export function PrivacyPanel() {
+  const { data, err, reload, setErr } = useLoad<DeletionRequestRow[]>(() => api.adminDeletions());
+  const [note, setNote] = useState<Record<string, string>>({});
+  async function record(r: DeletionRequestRow) {
+    try {
+      await api.adminRecordErasure(r.id, note[r.id] ?? "");
+      await reload();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed");
+    }
+  }
+  return (
+    <>
+      <p className="muted">
+        Account deletion requests. Record an erasure only after carrying it out per docs/PRIVACY.md
+        and after the cooling-off period ends.
+      </p>
+      <Err msg={err} />
+      {data?.length === 0 && <p className="muted">No deletion requests.</p>}
+      {data?.map((r) => {
+        const ready = r.status === "pending" && Date.parse(r.notBefore) <= Date.now();
+        return (
+          <div className="card" key={r.id}>
+            <p>
+              <span className="badge warn">{r.status}</span> user <code>{r.userId}</code>
+            </p>
+            <p className="muted">
+              Requested {when(r.requestedAt)} · erasable after {when(r.notBefore)}
+              {r.reason ? ` · reason: ${r.reason}` : ""}
+            </p>
+            {r.status === "pending" &&
+              (ready ? (
+                <>
+                  <label className="sr-only" htmlFor={`er-${r.id}`}>
+                    Erasure note
+                  </label>
+                  <input
+                    id={`er-${r.id}`}
+                    placeholder="What was erased and how"
+                    value={note[r.id] ?? ""}
+                    onChange={(e) => setNote({ ...note, [r.id]: e.target.value })}
+                  />
+                  <button className="btn danger small" onClick={() => record(r)}>
+                    Record erasure
+                  </button>
+                </>
+              ) : (
+                <p className="muted">Cooling-off period still running.</p>
+              ))}
+          </div>
+        );
+      })}
     </>
   );
 }

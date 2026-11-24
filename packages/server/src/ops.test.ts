@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   adminListAudit,
+  adminListDeletions,
+  adminRecordErasure,
+  cancelAccountDeletion,
+  DELETION_COOLING_OFF_DAYS,
+  exportMyData,
+  myDeletionRequest,
+  requestAccountDeletion,
   adminListContent,
   adminListReports,
   adminListSupport,
@@ -212,5 +219,70 @@ describe("existing admin actions are audited and notify", () => {
     const marked = await markNotificationsRead(deps, "hank", { ids: "all" });
     expect(marked.updated).toBe(1);
     expect((await listNotifications(deps, "hank"))[0]!.readAt).not.toBeNull();
+  });
+});
+
+describe("privacy: export and account deletion", () => {
+  it("exports only the caller's own data and audits the export", async () => {
+    const { deps, stores } = setup();
+    await createSupportRequest(deps, "alice", {
+      category: "account",
+      subject: "Help me out",
+      body: "I need help with my account please.",
+    });
+    await createSupportRequest(deps, "bob", {
+      category: "account",
+      subject: "Bobs private issue",
+      body: "This text must never reach alice.",
+    });
+    const out = await exportMyData(deps, "alice");
+    expect(out.account.id).toBe("alice");
+    expect(out.support).toHaveLength(1);
+    expect(JSON.stringify(out)).not.toContain("Bobs private issue");
+    expect(
+      stores.ops.audit.some((a) => a.action === "privacy.export" && a.actorId === "alice"),
+    ).toBe(true);
+  });
+  it("requires typed confirmation, allows one pending request, and can be cancelled", async () => {
+    const { deps } = setup();
+    expect(await code(requestAccountDeletion(deps, "alice", { confirm: "yes" }))).toBe("invalid");
+    const row = await requestAccountDeletion(deps, "alice", { confirm: "DELETE MY ACCOUNT" });
+    expect(row.status).toBe("pending");
+    expect(Date.parse(row.notBefore) - Date.parse(row.requestedAt)).toBe(
+      DELETION_COOLING_OFF_DAYS * 86_400_000,
+    );
+    expect(
+      await code(requestAccountDeletion(deps, "alice", { confirm: "DELETE MY ACCOUNT" })),
+    ).toBe("conflict");
+    expect((await myDeletionRequest(deps, "alice"))?.id).toBe(row.id);
+    expect((await cancelAccountDeletion(deps, "alice")).status).toBe("cancelled");
+    expect(await myDeletionRequest(deps, "alice")).toBeNull();
+    expect(await code(cancelAccountDeletion(deps, "alice"))).toBe("not_found");
+    // may ask again after cancelling
+    expect(
+      (await requestAccountDeletion(deps, "alice", { confirm: "DELETE MY ACCOUNT" })).status,
+    ).toBe("pending");
+  });
+  it("only admins list requests, and erasure cannot be recorded before the cooling-off ends", async () => {
+    const { deps, tick, stores } = setup();
+    const row = await requestAccountDeletion(deps, "alice", { confirm: "DELETE MY ACCOUNT" });
+    expect(await code(adminListDeletions(deps, "alice"))).toBe("forbidden");
+    expect(await adminListDeletions(deps, "admin", "pending")).toHaveLength(1);
+    expect(await code(adminRecordErasure(deps, "alice", row.id, { note: "do it now" }))).toBe(
+      "forbidden",
+    );
+    expect(await code(adminRecordErasure(deps, "admin", row.id, { note: "too early here" }))).toBe(
+      "conflict",
+    );
+    tick(DELETION_COOLING_OFF_DAYS * 86_400_000 + 1000);
+    expect(await code(adminRecordErasure(deps, "admin", row.id, { note: "x" }))).toBe("invalid");
+    const done = await adminRecordErasure(deps, "admin", row.id, { note: "Erased per runbook" });
+    expect(done.status).toBe("fulfilled");
+    expect(await code(adminRecordErasure(deps, "admin", row.id, { note: "Erased again" }))).toBe(
+      "conflict",
+    );
+    expect(stores.ops.audit.map((a) => a.action)).toEqual(
+      expect.arrayContaining(["privacy.deletion_requested", "privacy.erasure_recorded"]),
+    );
   });
 });

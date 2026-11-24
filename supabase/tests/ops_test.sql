@@ -35,3 +35,20 @@ select set_config('request.jwt.claim.sub', '92000000-0000-0000-0000-000000000002
 select pg_temp.expect_rows($$select 1 from public.support_requests$$, 0, 'strangers see no support requests');
 select pg_temp.expect_rows($$select 1 from public.notifications$$, 0, 'strangers see no notifications');
 reset role;
+
+-- Privacy: deletion requests
+reset role;
+set role service_role;
+insert into public.deletion_requests (user_id, not_before)
+  values ('91000000-0000-0000-0000-000000000001', now() + interval '14 days');
+select pg_temp.expect_fail($$insert into public.deletion_requests (user_id, not_before) values ('91000000-0000-0000-0000-000000000001', now() + interval '14 days')$$, 'only one pending deletion request per user');
+select pg_temp.expect_fail($$insert into public.deletion_requests (user_id, status, not_before) values ('92000000-0000-0000-0000-000000000002', 'done', now())$$, 'unknown deletion status');
+reset role;
+set role authenticated;
+select set_config('request.jwt.claim.sub', '91000000-0000-0000-0000-000000000001', false);
+select pg_temp.expect_rows($$select 1 from public.deletion_requests$$, 1, 'owner sees own deletion request');
+select pg_temp.expect_fail($$update public.deletion_requests set status = 'cancelled'$$, 'clients cannot change deletion requests');
+select pg_temp.expect_fail($$insert into public.deletion_requests (user_id, not_before) values ('91000000-0000-0000-0000-000000000001', now())$$, 'clients cannot create deletion requests directly');
+select set_config('request.jwt.claim.sub', '92000000-0000-0000-0000-000000000002', false);
+select pg_temp.expect_rows($$select 1 from public.deletion_requests$$, 0, 'strangers see no deletion requests');
+reset role;

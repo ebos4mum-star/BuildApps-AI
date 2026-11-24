@@ -9,6 +9,7 @@ import type {
   SupportRow,
 } from "@buildapps/api-client";
 import Link from "next/link";
+import { PrivacyCard } from "@/components/PrivacyCard";
 
 const CATEGORIES: SupportCategory[] = [
   "account",
@@ -230,6 +231,7 @@ export default function SupportPage() {
           <button className="btn danger small">Submit report</button>
         </p>
       </form>
+      <PrivacyCard />
     </>
   );
 }

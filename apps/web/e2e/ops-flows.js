@@ -201,6 +201,41 @@ const api = (page, method, path, body) =>
   );
   ok((await api(pat, "GET", "/api/lessons/anatomy-1")).status === 200, "lesson is served again");
 
+  log("# privacy: export and deletion request through the UI");
+  const exp = await api(pat, "GET", "/api/privacy/export");
+  ok(
+    exp.status === 200 && exp.json.account?.id === "dev-pat",
+    "export returns the caller's own data",
+  );
+  ok(!JSON.stringify(exp.json).includes("stranger's"), "export contains no other user's content");
+  await pat.goto(`${BASE}/support`);
+  const card = pat.getByTestId("privacy-card");
+  await card.waitFor();
+  const del = card.getByRole("button", { name: "Request account deletion" });
+  ok(await del.isDisabled(), "deletion stays disabled until the phrase is typed");
+  await card.getByLabel("Type DELETE MY ACCOUNT to confirm").fill("DELETE MY ACCOUNT");
+  await del.click();
+  await card.getByText("Deletion requested", { exact: false }).first().waitFor();
+  ok(true, "deletion request recorded with a cooling-off period");
+  ok(
+    (await api(admin, "GET", "/api/admin/privacy/deletions")).json.deletions.length === 1,
+    "admin sees the deletion request",
+  );
+  const early = await api(
+    admin,
+    "POST",
+    `/api/admin/privacy/deletions/${(await api(admin, "GET", "/api/admin/privacy/deletions")).json.deletions[0].id}/erasure`,
+    { note: "Erased early" },
+  );
+  ok(early.status === 409, "erasure cannot be recorded during the cooling-off period");
+  ok(
+    (await api(stranger, "GET", "/api/admin/privacy/deletions")).status === 403,
+    "non-admin refused",
+  );
+  await card.getByRole("button", { name: "Cancel deletion" }).click();
+  await del.waitFor();
+  ok(true, "the account holder can cancel during cooling-off");
+
   log("# audit trail");
   await admin.goto(`${BASE}/admin`);
   await admin.getByRole("tab", { name: "Audit log" }).click();
@@ -213,6 +248,8 @@ const api = (page, method, path, body) =>
     "user.reinstate",
     "lesson.disable",
     "lesson.enable",
+    "privacy.deletion_requested",
+    "privacy.deletion_cancelled",
   ])
     ok((await log_.getByText(a, { exact: true }).count()) >= 1, `audit entry recorded: ${a}`);
 

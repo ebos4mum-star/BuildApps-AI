@@ -64,6 +64,19 @@ export interface NotificationRow {
   readAt: string | null;
   createdAt: string;
 }
+export type DeletionStatus = "pending" | "cancelled" | "fulfilled";
+export interface DeletionRequestRow {
+  id: string;
+  userId: string;
+  status: DeletionStatus;
+  reason: string | null;
+  requestedAt: string;
+  /** Erasure may not be carried out before this time (cooling-off). */
+  notBefore: string;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  note: string | null;
+}
 export interface OpsCounts {
   users: number;
   suspendedUsers: number;
@@ -131,4 +144,19 @@ export interface OpsStore {
   ): Promise<void>;
   listNotifications(userId: string, limit: number): Promise<NotificationRow[]>;
   markNotificationsRead(userId: string, ids: string[] | "all", now: Date): Promise<number>;
+
+  createDeletionRequest(
+    userId: string,
+    v: { reason: string | null; notBefore: Date },
+    now: Date,
+  ): Promise<DeletionRequestRow>;
+  getPendingDeletion(userId: string): Promise<DeletionRequestRow | null>;
+  latestDeletion(userId: string): Promise<DeletionRequestRow | null>;
+  getDeletion(id: string): Promise<DeletionRequestRow | null>;
+  listDeletions(status?: DeletionStatus): Promise<DeletionRequestRow[]>;
+  resolveDeletion(
+    id: string,
+    patch: { status: "cancelled" | "fulfilled"; note: string | null; resolvedBy: string | null },
+    now: Date,
+  ): Promise<DeletionRequestRow>;
 }

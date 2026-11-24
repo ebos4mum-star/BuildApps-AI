@@ -5,6 +5,7 @@ import type {
   AdminLesson,
   AdminOverview,
   AuditRow,
+  DeletionRequestRow,
   SupportRow,
   UserSummary,
 } from "@buildapps/api-client";
@@ -46,6 +47,7 @@ export function AdminOps() {
       <SupportSection />
       <ReportsSection />
       <ContentSection />
+      <PrivacySection />
       <AuditSection />
     </View>
   );
@@ -287,6 +289,56 @@ function AuditSection() {
           </Text>
         </Text>
       ))}
+    </Section>
+  );
+}
+
+function PrivacySection() {
+  const { data, err, reload, setErr } = useOps<DeletionRequestRow[]>(
+    () => api.adminDeletions(),
+    true,
+  );
+  const [note, setNote] = useState<Record<string, string>>({});
+  async function record(r: DeletionRequestRow) {
+    try {
+      await api.adminRecordErasure(r.id, note[r.id] ?? "");
+      await reload();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed");
+    }
+  }
+  return (
+    <Section title="Privacy: deletion requests">
+      <ErrText msg={err} />
+      {data?.length === 0 ? <Text style={s.muted}>No deletion requests.</Text> : null}
+      {data?.map((r) => {
+        const ready = r.status === "pending" && Date.parse(r.notBefore) <= Date.now();
+        return (
+          <Card key={r.id}>
+            <Badge text={r.status} tone="warn" />
+            <Text style={s.text}>User {r.userId}</Text>
+            <Text style={s.muted}>
+              Requested {when(r.requestedAt)} · erasable after {when(r.notBefore)}
+            </Text>
+            {r.status === "pending" ? (
+              ready ? (
+                <>
+                  <TextInput
+                    style={s.input}
+                    accessibilityLabel="Erasure note"
+                    placeholder="What was erased and how"
+                    value={note[r.id] ?? ""}
+                    onChangeText={(t) => setNote({ ...note, [r.id]: t })}
+                  />
+                  <Button title="Record erasure" kind="danger" onPress={() => void record(r)} />
+                </>
+              ) : (
+                <Text style={s.muted}>Cooling-off period still running.</Text>
+              )
+            ) : null}
+          </Card>
+        );
+      })}
     </Section>
   );
 }

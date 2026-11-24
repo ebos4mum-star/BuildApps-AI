@@ -10,6 +10,9 @@ export interface UserStats {
   verifiedMilestones: number;
   verifiedProjectsCompleted: number;
   totalXp: number;
+  debugCasesCompleted: number;
+  guidedProjectsCompleted: number;
+  pathsCompleted: number;
 }
 export type StatKey = keyof UserStats;
 
@@ -98,6 +101,36 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
     name: "Verified Finish",
     criteria: { stat: "verifiedProjectsCompleted", atLeast: 1 },
     rewardXp: 200,
+  },
+  {
+    id: "case-closed",
+    name: "Case Closed",
+    criteria: { stat: "debugCasesCompleted", atLeast: 1 },
+    rewardXp: 30,
+  },
+  {
+    id: "detective",
+    name: "Detective",
+    criteria: { stat: "debugCasesCompleted", atLeast: 5 },
+    rewardXp: 120,
+  },
+  {
+    id: "first-guided-project",
+    name: "Hands-On Builder",
+    criteria: { stat: "guidedProjectsCompleted", atLeast: 1 },
+    rewardXp: 50,
+  },
+  {
+    id: "all-guided-projects",
+    name: "Portfolio Ready",
+    criteria: { stat: "guidedProjectsCompleted", atLeast: 3 },
+    rewardXp: 150,
+  },
+  {
+    id: "path-graduate",
+    name: "Path Graduate",
+    criteria: { stat: "pathsCompleted", atLeast: 1 },
+    rewardXp: 100,
   },
 ];
 

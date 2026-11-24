@@ -80,3 +80,6 @@ M5 web · M6 mobile. Later: Rescue Scanner, Workspace, Verification Lab, Human R
   stalled app). Lessons carry a `kind`; the web and mobile maps show the path, kind icons and per-path progress.
 - **Verification Lab isolation**: see `docs/VERIFICATION_SANDBOX.md`. Runtime verification remains unavailable
   (fails closed) until a real backend passes the probe suite.
+- **Privacy**: self-service data export and account deletion requests with a 14-day cooling-off (web + mobile),
+  admin queue, audited; erasure itself is an operator runbook (`docs/PRIVACY.md`).
+- **Achievements** now include debugging cases, guided projects and completed paths (18 total).
