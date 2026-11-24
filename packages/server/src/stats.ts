@@ -15,11 +15,15 @@ import type { ProgressState, ProgressStore } from "./store";
 const rank = (l: string) => SKILL_LEVELS.indexOf(l as (typeof SKILL_LEVELS)[number]);
 
 export function statsFromState(s: ProgressState, extraXp = 0): UserStats {
-  const tree = computeSkillTree(curriculum.skills, evidenceFromPassed(s.passedExerciseIds));
+  const tree = computeSkillTree(
+    curriculum.skills,
+    evidenceFromPassed(s.passedExerciseIds),
+    s.placedOut,
+  );
   const doneLessons = curriculum.lessons.filter((l) =>
     l.exercises.every((e) => s.passedExerciseIds.has(e.id)),
   );
-  const path = buildLearningPath(s.passedExerciseIds);
+  const path = buildLearningPath(s.passedExerciseIds, s.placedOut);
   return {
     debugCasesCompleted: doneLessons.filter((l) => l.kind === "debug_challenge").length,
     guidedProjectsCompleted: doneLessons.filter((l) => l.kind === "guided_project").length,

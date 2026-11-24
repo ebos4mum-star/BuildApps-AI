@@ -1,4 +1,5 @@
 import { SupabaseOpsStore } from "./ops-supabase-store";
+import { SupabaseProfileStore } from "./profile-store";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Milestone,
@@ -36,7 +37,7 @@ export class SupabaseProgressStore implements ProgressStore {
     await this.db
       .from("user_progress")
       .upsert({ user_id: userId }, { onConflict: "user_id", ignoreDuplicates: true });
-    const [progress, profile, completions, awards, achievements, attempts, verified] =
+    const [progress, profile, completions, awards, achievements, attempts, verified, placement] =
       await Promise.all([
         this.db.from("user_progress").select("*").eq("user_id", userId).single(),
         this.db.from("profiles").select("timezone").eq("id", userId).maybeSingle(),
@@ -56,6 +57,7 @@ export class SupabaseProgressStore implements ProgressStore {
           .select("id, projects!inner(owner_id)", { count: "exact", head: true })
           .eq("completion_source", "verified")
           .eq("projects.owner_id", userId),
+        this.db.from("learner_profiles").select("placed_out").eq("user_id", userId).maybeSingle(),
       ]);
     fail("load progress", progress.error);
     fail("load profile", profile.error);
@@ -64,6 +66,7 @@ export class SupabaseProgressStore implements ProgressStore {
     fail("load achievements", achievements.error);
     fail("load attempts", attempts.error);
     fail("load verified", verified.error);
+    fail("load placement", placement.error);
     const p = progress.data;
     const cutoff = Date.now() - 10 * 86_400_000;
     return {
@@ -82,6 +85,7 @@ export class SupabaseProgressStore implements ProgressStore {
       },
       version: p.version,
       earnedAchievements: new Set((achievements.data ?? []).map((r) => r.achievement_id as string)),
+      placedOut: new Set((placement.data?.placed_out as string[] | undefined) ?? []),
       timeZone: profile.data?.timezone ?? "UTC",
       verifiedMilestones: verified.count ?? 0,
       verifiedProjectsCompleted: await this.countVerifiedCompletedProjects(userId),
@@ -394,4 +398,5 @@ export const createSupabaseStores = (serviceClient: SupabaseClient): Stores => (
   rescue: new SupabaseRescueStore(serviceClient),
   publishing: new SupabasePublishingStore(serviceClient),
   ops: new SupabaseOpsStore(serviceClient),
+  profiles: new SupabaseProfileStore(serviceClient),
 });

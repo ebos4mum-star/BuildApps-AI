@@ -61,9 +61,12 @@ export interface LearningPath {
   nextLessonId: string | null;
 }
 
-export function buildLearningPath(passedExerciseIds: Iterable<string>): LearningPath {
+export function buildLearningPath(
+  passedExerciseIds: Iterable<string>,
+  placedOut: ReadonlySet<string> = new Set(),
+): LearningPath {
   const passed = new Set(passedExerciseIds);
-  const tree = computeSkillTree(curriculum.skills, evidenceFromPassed(passed));
+  const tree = computeSkillTree(curriculum.skills, evidenceFromPassed(passed), placedOut);
   let nextLessonId: string | null = null;
   const units = curriculum.units.map<PathUnit>((u) => ({
     id: u.id,
@@ -109,9 +112,25 @@ export function buildLearningPath(passedExerciseIds: Iterable<string>): Learning
 export function isExerciseUnlocked(
   exerciseId: string,
   passedExerciseIds: Iterable<string>,
+  placedOut: ReadonlySet<string> = new Set(),
 ): boolean {
   const hit = exerciseIndex.get(exerciseId);
   if (!hit) return false;
-  const tree = computeSkillTree(curriculum.skills, evidenceFromPassed(passedExerciseIds));
+  const tree = computeSkillTree(
+    curriculum.skills,
+    evidenceFromPassed(passedExerciseIds),
+    placedOut,
+  );
   return tree.get(hit.lesson.skillId)?.unlocked ?? false;
+}
+
+/** Placement check: the hardest exercises of a skill (deterministic), used to prove existing knowledge. */
+export const PLACEMENT_SIZE = 4;
+export function placementExerciseIds(skillId: string): string[] {
+  return curriculum.lessons
+    .filter((l) => l.skillId === skillId && (l.kind ?? "lesson") === "lesson")
+    .flatMap((l) => l.exercises)
+    .sort((a, b) => b.difficulty - a.difficulty || a.id.localeCompare(b.id))
+    .slice(0, PLACEMENT_SIZE)
+    .map((e) => e.id);
 }

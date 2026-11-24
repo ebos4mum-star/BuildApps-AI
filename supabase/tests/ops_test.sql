@@ -52,3 +52,19 @@ select pg_temp.expect_fail($$insert into public.deletion_requests (user_id, not_
 select set_config('request.jwt.claim.sub', '92000000-0000-0000-0000-000000000002', false);
 select pg_temp.expect_rows($$select 1 from public.deletion_requests$$, 0, 'strangers see no deletion requests');
 reset role;
+
+-- Learner profiles
+reset role;
+set role service_role;
+insert into public.learner_profiles (user_id, experience, goals, tools, intent, pace)
+  values ('91000000-0000-0000-0000-000000000001', 'some', '{ship_first_app}', '{cursor}', 'start', 'steady');
+select pg_temp.expect_fail($$insert into public.learner_profiles (user_id, experience, goals, tools, intent, pace) values ('92000000-0000-0000-0000-000000000002', 'guru', '{a}', '{b}', 'start', 'steady')$$, 'unknown experience level');
+select pg_temp.expect_fail($$insert into public.learner_profiles (user_id, experience, goals, tools, intent, pace, reminder_hour) values ('92000000-0000-0000-0000-000000000002', 'new', '{a}', '{b}', 'start', 'steady', 30)$$, 'reminder hour out of range');
+reset role;
+set role authenticated;
+select set_config('request.jwt.claim.sub', '91000000-0000-0000-0000-000000000001', false);
+select pg_temp.expect_rows($$select 1 from public.learner_profiles$$, 1, 'owner sees own profile');
+select pg_temp.expect_fail($$update public.learner_profiles set placed_out = '{backend}'$$, 'clients cannot grant themselves placement');
+select set_config('request.jwt.claim.sub', '92000000-0000-0000-0000-000000000002', false);
+select pg_temp.expect_rows($$select 1 from public.learner_profiles$$, 0, 'strangers see no profiles');
+reset role;

@@ -1,4 +1,4 @@
-import type { Project, RepoRef, StreakState } from "@buildapps/core";
+import type { LearnerProfile, Project, RepoRef, StreakState } from "@buildapps/core";
 import type { GitHubStore, RescueStore, ScanStore } from "./batch2-types";
 import type { PublishingStore } from "./publishing-types";
 import type { OpsStore } from "./ops-types";
@@ -16,6 +16,8 @@ export interface ProgressState {
   timeZone: string;
   verifiedMilestones: number;
   verifiedProjectsCompleted: number;
+  /** Skills proven through placement: unlock dependents, never grant mastery. */
+  placedOut: Set<string>;
   /** Persisted attempts the user already made on the requested exercise. */
   priorAttempts: number;
 }
@@ -78,7 +80,22 @@ export interface ProjectStore {
   unlinkRepo(githubInstallationId: number, owner: string, name: string): Promise<void>;
 }
 
+export interface StoredProfile {
+  profile: LearnerProfile;
+  placedOut: string[];
+  completedAt: string;
+  updatedAt: string;
+}
+export interface ProfileStore {
+  get(userId: string): Promise<StoredProfile | null>;
+  /** Creates or replaces the self-reported answers; never touches placement. */
+  save(userId: string, profile: LearnerProfile, now: Date): Promise<StoredProfile>;
+  /** Server-only, after a passed placement check. Requires an existing profile row. */
+  addPlacedOut(userId: string, skillId: string, now: Date): Promise<void>;
+}
+
 export interface Stores {
+  profiles: ProfileStore;
   progress: ProgressStore;
   projects: ProjectStore;
   github: GitHubStore;

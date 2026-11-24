@@ -91,7 +91,12 @@ export async function getWorkspace(
       d.sandbox?.attestation ?? null,
       nowOf(d),
     ),
-    recommendedLessons: recommendForFindings(findings, learner.passedExerciseIds),
+    recommendedLessons: recommendForFindings(
+      findings,
+      learner.passedExerciseIds,
+      4,
+      learner.placedOut,
+    ),
     helpRequest:
       requests
         .filter((r) => r.projectId === projectId && r.kind === "rescue" && r.status !== "cancelled")

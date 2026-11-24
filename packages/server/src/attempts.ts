@@ -84,7 +84,7 @@ export async function submitAttempt(
       }
     }
 
-    if (!isExerciseUnlocked(input.exerciseId, state.passedExerciseIds))
+    if (!isExerciseUnlocked(input.exerciseId, state.passedExerciseIds, state.placedOut))
       throw new AttemptError("locked", "Complete the earlier lessons first");
 
     let grade: GradeResult;
@@ -134,8 +134,16 @@ export async function submitAttempt(
     }
 
     // 2) skill level-ups -> skill_demonstration awards (idempotent per skill+level)
-    const before = computeSkillTree(curriculum.skills, evidenceFromPassed(state.passedExerciseIds));
-    const afterTree = computeSkillTree(curriculum.skills, evidenceFromPassed(passedAfter));
+    const before = computeSkillTree(
+      curriculum.skills,
+      evidenceFromPassed(state.passedExerciseIds),
+      state.placedOut,
+    );
+    const afterTree = computeSkillTree(
+      curriculum.skills,
+      evidenceFromPassed(passedAfter),
+      state.placedOut,
+    );
     const skillLevelUps: AttemptOutcome["skillLevelUps"] = [];
     for (const [id, s] of afterTree) {
       if (rank(s.level) > rank(before.get(id)?.level ?? "none"))

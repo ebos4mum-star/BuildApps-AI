@@ -11,6 +11,7 @@ export const GET = (req: Request) =>
         userId,
         new Date(),
         await disabledLessonIds(getStores()),
+        await getStores().profiles.get(userId),
       ),
     ),
   );

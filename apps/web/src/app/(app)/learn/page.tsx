@@ -65,6 +65,114 @@ export default function Learn() {
         {d.streak.status === "active" ? " - practise today to keep your streak" : ""}
       </p>
 
+      {!d.profile && (
+        <div className="card" data-testid="personalize-banner">
+          <strong>Make this path yours</strong>
+          <p className="muted" style={{ margin: ".3rem 0" }}>
+            Answer a few questions and we will shape your path, daily goal and starting point.
+          </p>
+          <Link className="btn small" href="/onboarding">
+            Personalize
+          </Link>
+        </div>
+      )}
+      {d.comeback && (
+        <div className="card" role="status" data-testid="comeback">
+          <strong>Welcome back! 👋</strong>
+          <p className="muted" style={{ margin: ".3rem 0" }}>
+            It has been {d.comeback.daysAway} days. Your progress is exactly where you left it. One
+            short exercise is enough to get going again.
+          </p>
+          {d.path.nextLessonId && (
+            <Link className="btn small" href={`/learn/${d.path.nextLessonId}`}>
+              Pick up where you left off
+            </Link>
+          )}
+        </div>
+      )}
+      {d.plan && (
+        <div className="card" data-testid="plan">
+          <strong>Your plan</strong>
+          <p style={{ margin: ".3rem 0" }}>{d.plan.headline}</p>
+          <div className="stats">
+            {d.plan.projectFirst && (
+              <Link className="btn small" href="/projects">
+                Open my projects
+              </Link>
+            )}
+            {d.plan.focusLessonId && (
+              <Link className="btn small secondary" href={`/learn/${d.plan.focusLessonId}`}>
+                Start with a lesson for your goals
+              </Link>
+            )}
+            <Link className="btn small secondary" href="/onboarding?edit=1">
+              Edit my plan
+            </Link>
+          </div>
+          {d.plan.placementOffers.length > 0 && (
+            <>
+              <p className="muted" style={{ margin: ".6rem 0 .2rem" }}>
+                Already know these? A short check lets you skip ahead. You still earn mastery by
+                practising.
+              </p>
+              <div className="stats">
+                {d.plan.placementOffers.map((id) => (
+                  <Link key={id} className="badge" href={`/learn/check/${id}`}>
+                    Skip check: {d.skillNames[id]}
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+      <div className="card" data-testid="daily-goal">
+        <strong>Today</strong>{" "}
+        <span className="muted">
+          {d.dailyGoal.met
+            ? "Daily goal reached 🎉"
+            : `${d.dailyGoal.todayXp} / ${d.dailyGoal.targetXp} XP`}
+        </span>
+        <div
+          className="bar"
+          style={{ marginTop: ".4rem" }}
+          role="progressbar"
+          aria-label="Daily goal"
+          aria-valuemin={0}
+          aria-valuemax={d.dailyGoal.targetXp}
+          aria-valuenow={Math.min(d.dailyGoal.todayXp, d.dailyGoal.targetXp)}
+        >
+          <i
+            style={{
+              width: `${Math.min(100, (d.dailyGoal.todayXp / d.dailyGoal.targetXp) * 100)}%`,
+            }}
+          />
+        </div>
+        <div
+          className="stats"
+          style={{ marginTop: ".6rem", alignItems: "flex-end" }}
+          aria-label={`This week: ${d.weekly.xp} XP over ${d.weekly.activeDays} active days`}
+        >
+          {d.weekly.days.map((w) => (
+            <span key={w.day} title={`${w.day}: ${w.xp} XP`} aria-hidden="true">
+              <i
+                style={{
+                  display: "block",
+                  width: 14,
+                  height: 6 + Math.min(40, w.xp / 2),
+                  borderRadius: 4,
+                  background: w.xp > 0 ? "var(--mint, #2ee6a6)" : "rgba(255,255,255,.15)",
+                }}
+              />
+            </span>
+          ))}
+          <span className="muted">
+            This week: {d.weekly.xp} XP · {d.weekly.activeDays} active{" "}
+            {d.weekly.activeDays === 1 ? "day" : "days"}
+          </span>
+        </div>
+      </div>
+
       {d.path.units.some((u) => u.lessons.some((l) => l.passed > 0)) && (
         <p>
           <Link className="btn secondary small" href="/learn/practice">

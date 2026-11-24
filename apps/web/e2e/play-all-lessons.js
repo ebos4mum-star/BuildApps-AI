@@ -75,7 +75,18 @@ async function solve(page, ex, { wrong = false } = {}) {
   await page.getByRole("button", { name: "Continue" }).click();
   await page.waitForURL("**/onboarding");
   await page.screenshot({ path: `${S}/01-onboarding.png` });
-  await page.getByRole("link", { name: /Start a project/ }).click();
+  for (const [role, name] of [
+    ["radio", /Brand new/],
+    ["checkbox", /Ship my first app/],
+    ["checkbox", /Claude Code/],
+    ["radio", /Start a project/],
+    ["radio", /Steady/],
+  ]) {
+    await page.getByRole(role, { name }).click();
+    await page.getByRole("button", { name: "Continue" }).click();
+  }
+  await page.getByRole("button", { name: "Continue" }).click(); // project type / platform are optional
+  await page.getByRole("button", { name: "Build my plan" }).click();
   await page.fill("#name", "Habit app");
   await page.fill("#idea", "A habit tracker for students with streaks");
   await page.getByRole("button", { name: "Create project" }).click();

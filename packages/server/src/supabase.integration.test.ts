@@ -43,6 +43,14 @@ import {
   disconnectGithub,
   expertWorkspace,
   getDashboard,
+  getMyProfile,
+  getPlacement,
+  saveMyProfile,
+  submitPlacement,
+  requestAccountDeletion,
+  cancelAccountDeletion,
+  exportMyData,
+  adminListDeletions,
   getPublishing,
   getWorkspace,
   grantHandoff,
@@ -797,5 +805,85 @@ describe.skipIf(!enabled)("real Supabase integration", () => {
     expect((await admin.from("admin_audit").delete().eq("id", audit[0]!.id)).error).not.toBeNull();
     const o = await adminOverview(deps, adminUser.id);
     expect(o.users).toBeGreaterThan(2);
+  }, 60_000);
+
+  it("onboarding profile, placement and privacy workflows on the real stack", async () => {
+    const st = createSupabaseStores(admin);
+    const deps: Deps = { stores: st, gateway: null, stateSecret: "s".repeat(32) };
+    const u = await makeUser();
+    const stranger = await makeUser();
+    const profile = {
+      experience: "experienced",
+      goals: ["level_up_skills"],
+      tools: ["cursor"],
+      intent: "learn_first",
+      pace: "steady",
+      projectTypes: ["web_app"],
+      platforms: ["web"],
+      reminders: { enabled: true, hour: 9 },
+    };
+    expect(await getMyProfile(deps, u.id)).toBeNull();
+    await saveMyProfile(deps, u.id, profile);
+    expect((await getMyProfile(deps, u.id))?.profile.reminders).toEqual({ enabled: true, hour: 9 });
+    // RLS: the owner reads their profile; nobody else does; clients cannot grant themselves placement
+    expect((await u.client.from("learner_profiles").select("user_id")).data).toHaveLength(1);
+    expect((await stranger.client.from("learner_profiles").select("user_id")).data).toEqual([]);
+    await u.client
+      .from("learner_profiles")
+      .update({ placed_out: ["backend"] })
+      .eq("user_id", u.id);
+    expect((await getMyProfile(deps, u.id))?.placedOut).toEqual([]);
+
+    // placement: a wrong check does nothing; a passed one unlocks without XP
+    const check = await getPlacement(deps, u.id, "app-anatomy");
+    expect(check.exercises).toHaveLength(4);
+    expect((await submitPlacement(deps, u.id, "app-anatomy", { answers: {} })).passed).toBe(false);
+    const { findExercise } = await import("@buildapps/lessons");
+    const answers = Object.fromEntries(
+      check.exercises.map((c) => {
+        const ex = findExercise(c.id)!.exercise;
+        const a =
+          ex.type === "sequence"
+            ? { type: "sequence", order: ex.solution }
+            : ex.type === "bug_hunt"
+              ? { type: "bug_hunt", lineIds: ex.solution }
+              : ex.type === "match"
+                ? { type: "match", placements: ex.solution }
+                : ex.type === "scenario"
+                  ? { type: "scenario", optionId: ex.solution }
+                  : { type: "word_bank", fills: ex.solution };
+        return [c.id, a];
+      }),
+    );
+    expect((await submitPlacement(deps, u.id, "app-anatomy", { answers })).passed).toBe(true);
+    const dash = await getDashboard(
+      st.progress,
+      u.id,
+      new Date(),
+      new Set(),
+      await getMyProfile(deps, u.id),
+    );
+    expect(dash.totalXp).toBe(0);
+    expect(dash.path.skills.find((k) => k.skillId === "frontend")!.unlocked).toBe(true);
+
+    // privacy: export is the caller's own; deletion needs the cooling-off; RLS on requests
+    expect((await exportMyData(deps, u.id)).account.id).toBe(u.id);
+    const del = await requestAccountDeletion(deps, u.id, { confirm: "DELETE MY ACCOUNT" });
+    expect((await u.client.from("deletion_requests").select("id")).data).toHaveLength(1);
+    expect((await stranger.client.from("deletion_requests").select("id")).data).toEqual([]);
+    await u.client.from("deletion_requests").update({ status: "cancelled" }).eq("id", del.id);
+    expect(
+      (await admin.from("deletion_requests").select("status").eq("id", del.id).single()).data
+        ?.status,
+    ).toBe("pending"); // clients cannot change their own request
+    const boss = await makeUser();
+    await admin.from("admins").insert({ user_id: boss.id });
+    expect((await adminListDeletions(deps, boss.id, "pending")).some((r) => r.id === del.id)).toBe(
+      true,
+    );
+    expect((await cancelAccountDeletion(deps, u.id)).status).toBe("cancelled");
+    expect((await adminListDeletions(deps, boss.id, "pending")).some((r) => r.id === del.id)).toBe(
+      false,
+    );
   }, 60_000);
 });

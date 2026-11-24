@@ -1,5 +1,5 @@
 import type { Answer } from "@buildapps/lessons";
-import type { Project, ProjectIntake, ProjectState } from "@buildapps/core";
+import type { LearnerProfile, Project, ProjectIntake, ProjectState } from "@buildapps/core";
 import type { ActionStatus, Platform, ReasonCategory, ReviewOutcome } from "@buildapps/publishing";
 import type {
   AbuseReportRow,
@@ -11,6 +11,8 @@ import type {
   SupportCategory,
   SupportRow,
   DeletionRequestRow,
+  PlacementCheck,
+  StoredProfile,
   UserSummary,
   ActionRow,
   AttemptOutcome,
@@ -65,6 +67,9 @@ export type {
   SupportCategory,
   SupportRow,
   DeletionRequestRow,
+  PlacementCheck,
+  StoredProfile,
+  LearnerProfile,
   UserSummary,
   ActionRow,
   AttemptOutcome,
@@ -408,6 +413,20 @@ export function createApiClient(opts: ApiClientOptions) {
         disabled,
         ...(note ? { note } : {}),
       }).then((r) => r.flag),
+    // ---- Onboarding profile and skill checks ----
+    myProfile: () =>
+      call<{ profile: StoredProfile | null }>("GET", "/api/profile").then((r) => r.profile),
+    saveProfile: (v: LearnerProfile) =>
+      call<{ profile: StoredProfile }>("PUT", "/api/profile", v).then((r) => r.profile),
+    placement: (skillId: string) =>
+      call<{ check: PlacementCheck }>("GET", `/api/placement/${enc(skillId)}`).then((r) => r.check),
+    submitPlacement: (skillId: string, answers: Record<string, Answer>) =>
+      call<{ passed: boolean; results: { exerciseId: string; correct: boolean }[] }>(
+        "POST",
+        `/api/placement/${enc(skillId)}`,
+        { answers },
+      ),
+
     // ---- Privacy (every signed-in user) ----
     exportMyData: () => call<Record<string, unknown>>("GET", "/api/privacy/export"),
     myDeletion: () =>

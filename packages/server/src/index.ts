@@ -21,3 +21,5 @@ export * from "./ops-types";
 export * from "./ops-memory-store";
 export * from "./ops-service";
 export * from "./privacy-service";
+export * from "./profile-store";
+export * from "./profile-service";

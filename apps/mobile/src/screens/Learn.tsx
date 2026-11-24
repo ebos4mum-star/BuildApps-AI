@@ -7,9 +7,13 @@ import { c } from "../theme";
 
 export function LearnScreen({
   onOpenLesson,
+  onOpenOnboarding,
+  onOpenCheck,
   refreshKey,
 }: {
   onOpenLesson: (id: string) => void;
+  onOpenOnboarding: () => void;
+  onOpenCheck: (skillId: string) => void;
   refreshKey: number;
 }) {
   const [d, setD] = useState<Dashboard | null>(null);
@@ -46,6 +50,79 @@ export function LearnScreen({
         <Text style={s.h2}>🏅 Lv {d.level}</Text>
       </View>
       <Bar pct={(d.xpIntoLevel / d.xpForNextLevel) * 100} label="XP to next level" />
+      {!d.profile ? (
+        <Card>
+          <Text style={{ color: c.text, fontWeight: "900" }}>Make this path yours</Text>
+          <Text style={s.muted}>
+            Answer a few questions and we will shape your path, daily goal and starting point.
+          </Text>
+          <Button title="Personalize" onPress={onOpenOnboarding} />
+        </Card>
+      ) : null}
+      {d.comeback ? (
+        <Card>
+          <Text accessibilityLiveRegion="polite" style={{ color: c.text, fontWeight: "900" }}>
+            Welcome back! 👋
+          </Text>
+          <Text style={s.muted}>
+            It has been {d.comeback.daysAway} days. Your progress is exactly where you left it. One
+            short exercise is enough to get going again.
+          </Text>
+          {d.path.nextLessonId ? (
+            <Button
+              title="Pick up where you left off"
+              onPress={() => onOpenLesson(d.path.nextLessonId!)}
+            />
+          ) : null}
+        </Card>
+      ) : null}
+      {d.plan ? (
+        <Card>
+          <Text style={{ color: c.text, fontWeight: "900" }}>Your plan</Text>
+          <Text style={s.text}>{d.plan.headline}</Text>
+          {d.plan.focusLessonId ? (
+            <Button
+              title="Start with a lesson for your goals"
+              onPress={() => onOpenLesson(d.plan!.focusLessonId!)}
+            />
+          ) : null}
+          <Button title="Edit my plan" kind="secondary" onPress={onOpenOnboarding} />
+          {d.plan.placementOffers.length > 0 ? (
+            <>
+              <Text style={s.muted}>
+                Already know these? A short check lets you skip ahead. You still earn mastery by
+                practising.
+              </Text>
+              {d.plan.placementOffers.map((id) => (
+                <Button
+                  key={id}
+                  title={`Skip check: ${d.skillNames[id]}`}
+                  kind="secondary"
+                  onPress={() => onOpenCheck(id)}
+                />
+              ))}
+            </>
+          ) : null}
+        </Card>
+      ) : null}
+      <Card>
+        <Text style={{ color: c.text, fontWeight: "900" }}>
+          Today{" "}
+          <Text style={s.muted}>
+            {d.dailyGoal.met
+              ? "Daily goal reached 🎉"
+              : `${d.dailyGoal.todayXp} / ${d.dailyGoal.targetXp} XP`}
+          </Text>
+        </Text>
+        <Bar
+          pct={Math.min(100, (d.dailyGoal.todayXp / d.dailyGoal.targetXp) * 100)}
+          label="Daily goal"
+        />
+        <Text style={s.muted}>
+          This week: {d.weekly.xp} XP · {d.weekly.activeDays} active{" "}
+          {d.weekly.activeDays === 1 ? "day" : "days"}
+        </Text>
+      </Card>
       <Text style={[s.h2, { marginTop: 16 }]} accessibilityRole="header">
         Learning paths
       </Text>

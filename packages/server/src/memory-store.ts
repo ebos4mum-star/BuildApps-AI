@@ -1,5 +1,6 @@
 import { calculateProgress, INITIAL_STREAK, type Project, type RepoRef } from "@buildapps/core";
 import type { InstallationInfo } from "@buildapps/github/types";
+import { MemoryProfileStore } from "./profile-store";
 import { mergeFindings } from "./merge-findings";
 import { MemoryPublishingStore } from "./publishing-memory-store";
 import type {
@@ -54,6 +55,7 @@ interface UserRow {
 /** One shared in-memory "database" so every memory store sees consistent data. */
 export class MemoryDb {
   users = new Map<string, UserRow>();
+  profiles = new MemoryProfileStore();
   projects = new Map<string, Project>();
   projectLinks = new Map<string, string>(); // projectId -> installation row id
   installations = new Map<string, InstallationRow>();
@@ -113,6 +115,7 @@ export class MemoryProgressStore implements ProgressStore {
       streak: { ...r.streak },
       version: r.version,
       earnedAchievements: new Set(r.achievements),
+      placedOut: new Set(this.db.profiles.rows.get(userId)?.placedOut ?? []),
       timeZone: r.timeZone,
       verifiedMilestones: mine
         .flatMap((p) => p.milestones)
@@ -598,5 +601,6 @@ export function createMemoryStores() {
     rescue: new MemoryRescueStore(db),
     publishing: new MemoryPublishingStore(db),
     ops: new MemoryOpsStore(db),
+    profiles: db.profiles,
   } satisfies Stores & { db: MemoryDb };
 }

@@ -27,8 +27,9 @@ export function recommendForFindings(
   findings: Pick<FindingRow, "category" | "title" | "status" | "severity">[],
   passedExerciseIds: Iterable<string>,
   limit = 4,
+  placedOut: ReadonlySet<string> = new Set(),
 ): LessonRecommendation[] {
-  const path = buildLearningPath(passedExerciseIds);
+  const path = buildLearningPath(passedExerciseIds, placedOut);
   const status = new Map(path.units.flatMap((u) => u.lessons).map((l) => [l.id, l.status]));
   const sevRank = ["critical", "high", "medium", "low", "info"];
   const open = findings

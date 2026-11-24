@@ -3,7 +3,9 @@
  * Everything reachable from here must stay free of Node-only code (crypto, GitHub App keys, etc.).
  * Clients must never import from the package root `@buildapps/server`.
  */
-export type { Dashboard, LessonPayload } from "./dashboard";
+export type { Dashboard, LessonPayload, Plan } from "./dashboard";
+export type { PlacementCheck } from "./profile-service";
+export type { StoredProfile } from "./store";
 export type { AttemptOutcome } from "./attempts";
 export type { WorkspaceView } from "./workspace";
 export type { RequestView, ExpertWorkspaceView } from "./experts";

@@ -1,6 +1,15 @@
 import {
   ACHIEVEMENTS,
   allQuestStatuses,
+  comeback,
+  dailyGoal,
+  weeklySummary,
+  GOAL_FOCUS_SKILLS,
+  PLACEMENT_CANDIDATES,
+  type Comeback,
+  type DailyGoal,
+  type LearnerProfile,
+  type WeeklySummary,
   getStreakStatus,
   levelFromXp,
   xpForLevel,
@@ -15,9 +24,26 @@ import {
   type ClientExercise,
   type LearningPath,
 } from "@buildapps/lessons";
-import type { ProgressStore } from "./store";
+import type { ProgressStore, StoredProfile } from "./store";
+
+export interface Plan {
+  /** Path the learner is guided into first. */
+  pathId: "beginner" | "intermediate" | "advanced";
+  /** Next lesson that fits the learner's goals, if one is available. */
+  focusLessonId: string | null;
+  /** Skills the learner may prove they already know (no XP or mastery is awarded for these). */
+  placementOffers: string[];
+  /** Whether to point the learner at their project workspace first. */
+  projectFirst: boolean;
+  headline: string;
+}
 
 export interface Dashboard {
+  profile: LearnerProfile | null;
+  plan: Plan | null;
+  dailyGoal: DailyGoal;
+  weekly: WeeklySummary;
+  comeback: Comeback | null;
   totalXp: number;
   level: number;
   xpIntoLevel: number;
@@ -52,16 +78,66 @@ function withUnavailable(path: LearningPath, disabled: ReadonlySet<string>): Lea
   };
 }
 
+/** Personalized starting point. Pure: depends only on the profile and what the learner has already done. */
+export function buildPlan(
+  profile: LearnerProfile,
+  path: LearningPath,
+  disabled: ReadonlySet<string>,
+  placedOut: ReadonlySet<string> = new Set(),
+): Plan {
+  const skills = new Map(path.skills.map((k) => [k.skillId, k]));
+  const lessons = path.units.flatMap((u) => u.lessons);
+  const open = (l: { id: string; status: string }) =>
+    (l.status === "available" || l.status === "in_progress") && !disabled.has(l.id);
+  const focusSkills = [...new Set(profile.goals.flatMap((g) => GOAL_FOCUS_SKILLS[g]))];
+  const focus =
+    focusSkills
+      .map((id) => lessons.find((l) => l.skillId === id && open(l)))
+      .find((l) => l !== undefined) ?? lessons.find(open);
+  const placementOffers =
+    profile.experience === "new"
+      ? []
+      : PLACEMENT_CANDIDATES.filter((id) => {
+          const k = skills.get(id);
+          return !!k && k.unlocked && k.level === "none" && !placedOut.has(id);
+        });
+  const pathId = profile.experience === "experienced" ? "intermediate" : "beginner";
+  const projectFirst = profile.intent === "continue" || profile.intent === "rescue";
+  return {
+    pathId,
+    focusLessonId: focus?.id ?? null,
+    placementOffers,
+    projectFirst,
+    headline: projectFirst
+      ? profile.intent === "rescue"
+        ? "Scan your project first, then learn exactly what it needs."
+        : "Open your project, then learn what will move it forward."
+      : profile.experience === "experienced"
+        ? "Skip what you know with a quick check, then build on it."
+        : "Start with the basics and build a real project step by step.",
+  };
+}
+
 export async function getDashboard(
   store: ProgressStore,
   userId: string,
   now = new Date(),
   disabledLessons: ReadonlySet<string> = new Set(),
+  stored: StoredProfile | null = null,
 ): Promise<Dashboard> {
   const s = await store.load(userId, "");
   const level = levelFromXp(s.totalXp);
   const st = getStreakStatus(s.streak, now, s.timeZone);
+  const path = withUnavailable(
+    buildLearningPath(s.passedExerciseIds, s.placedOut),
+    disabledLessons,
+  );
   return {
+    profile: stored?.profile ?? null,
+    plan: stored ? buildPlan(stored.profile, path, disabledLessons, s.placedOut) : null,
+    dailyGoal: dailyGoal(s.recentExerciseAwards, stored?.profile.pace ?? "steady", now, s.timeZone),
+    weekly: weeklySummary(s.recentExerciseAwards, now, s.timeZone),
+    comeback: s.totalXp > 0 ? comeback(s.streak.lastActiveDay, now, s.timeZone) : null,
     totalXp: s.totalXp,
     level,
     xpIntoLevel: s.totalXp - xpForLevel(level),
@@ -72,7 +148,7 @@ export async function getDashboard(
       status: st.status,
       restDaysAvailable: s.streak.restDaysAvailable,
     },
-    path: withUnavailable(buildLearningPath(s.passedExerciseIds), disabledLessons),
+    path,
     skillNames: Object.fromEntries(curriculum.skills.map((k) => [k.id, k.name])),
     achievements: ACHIEVEMENTS.map((a) => ({
       id: a.id,
@@ -115,7 +191,7 @@ export async function getPractice(
   disabledLessons: ReadonlySet<string> = new Set(),
 ): Promise<LessonPayload | null> {
   const s = await store.load(userId, "");
-  const path = buildLearningPath(s.passedExerciseIds);
+  const path = buildLearningPath(s.passedExerciseIds, s.placedOut);
   const weakest = path.skills
     .filter((k) => k.unlocked)
     .sort((a, b) => a.progressToNext - b.progressToNext || a.skillId.localeCompare(b.skillId));
@@ -157,7 +233,7 @@ export async function getLessonForUser(
   const lesson = getLesson(lessonId);
   if (!lesson || disabledLessons.has(lessonId)) return null;
   const s = await store.load(userId, "");
-  if (!isExerciseUnlocked(lesson.exercises[0]!.id, s.passedExerciseIds)) return null;
+  if (!isExerciseUnlocked(lesson.exercises[0]!.id, s.passedExerciseIds, s.placedOut)) return null;
   return {
     id: lesson.id,
     title: lesson.title,

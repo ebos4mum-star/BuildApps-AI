@@ -91,6 +91,11 @@ function levelFor(evidence: readonly z.output<typeof evidenceSchema>[]): {
 export function computeSkillTree(
   defs: readonly SkillDefinition[],
   rawEvidence: readonly SkillEvidence[],
+  /**
+   * Skills the learner proved they already know (placement). They satisfy dependents' prerequisites and are
+   * themselves unlocked, but earn NO level: mastery still comes only from evidence.
+   */
+  placedOut: ReadonlySet<string> = new Set(),
 ): Map<string, SkillState> {
   validateSkillGraph(defs);
   const seen = new Set<string>();
@@ -109,9 +114,10 @@ export function computeSkillTree(
     const cached = out.get(id);
     if (cached) return cached;
     const def = byId.get(id)!;
-    const unlocked = def.prerequisites.every(
-      (p) => rank(compute(p.skillId).level) >= rank(p.minLevel),
-    );
+    const satisfied = (skillId: string, min: SkillLevel) =>
+      placedOut.has(skillId) || rank(compute(skillId).level) >= rank(min);
+    const unlocked =
+      placedOut.has(id) || def.prerequisites.every((p) => satisfied(p.skillId, p.minLevel));
     const { level, points } = unlocked
       ? levelFor(bySkill.get(id) ?? [])
       : { level: "none" as const, points: 0 };

@@ -7,6 +7,8 @@ import { AdminScreen } from "./screens/Admin";
 import { HelpScreen } from "./screens/Help";
 import { ExpertScreen } from "./screens/Expert";
 import { LoginScreen } from "./screens/Login";
+import { OnboardingScreen } from "./screens/Onboarding";
+import { CheckScreen } from "./screens/Check";
 import { NewProject, ProjectsList } from "./screens/Projects";
 import { WorkspaceScreen } from "./screens/Workspace";
 import { Button } from "./components/ui";
@@ -15,6 +17,8 @@ import { c } from "./theme";
 
 type Screen =
   | { name: "learn" }
+  | { name: "onboarding" }
+  | { name: "check"; skillId: string }
   | { name: "lesson"; id: string }
   | { name: "projects" }
   | { name: "expert" }
@@ -34,6 +38,13 @@ export default function App() {
     const { data } = supabase.auth.onAuthStateChange((_e, session) => {
       setAuthed(!!session);
       if (session) {
+        // first run: offer the personalization questions once (skippable, editable later from Learn)
+        api.myProfile().then(
+          (p) => {
+            if (!p) setScreen({ name: "onboarding" });
+          },
+          () => undefined,
+        );
         api.adminMe().then(setAdmin, () => setAdmin(false)); // only decides whether to show the Admin tab
         api.notifications().then(
           (n) => setUnread(n.filter((x) => !x.readAt).length),
@@ -79,7 +90,7 @@ export default function App() {
         <LoginScreen />
       ) : (
         <>
-          {screen.name !== "lesson" && (
+          {screen.name !== "lesson" && screen.name !== "onboarding" && screen.name !== "check" && (
             <View
               style={{
                 flexDirection: "row",
@@ -104,6 +115,26 @@ export default function App() {
               <LearnScreen
                 refreshKey={refresh}
                 onOpenLesson={(id) => setScreen({ name: "lesson", id })}
+                onOpenOnboarding={() => setScreen({ name: "onboarding" })}
+                onOpenCheck={(skillId) => setScreen({ name: "check", skillId })}
+              />
+            )}
+            {screen.name === "onboarding" && (
+              <OnboardingScreen
+                onSkip={() => setScreen({ name: "learn" })}
+                onDone={(p) => {
+                  setRefresh((r) => r + 1);
+                  setScreen(p.intent === "learn_first" ? { name: "learn" } : { name: "new" });
+                }}
+              />
+            )}
+            {screen.name === "check" && (
+              <CheckScreen
+                skillId={screen.skillId}
+                onExit={() => {
+                  setRefresh((r) => r + 1);
+                  setScreen({ name: "learn" });
+                }}
               />
             )}
             {screen.name === "lesson" && (

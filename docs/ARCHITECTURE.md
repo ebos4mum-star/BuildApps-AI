@@ -83,3 +83,9 @@ M5 web · M6 mobile. Later: Rescue Scanner, Workspace, Verification Lab, Human R
 - **Privacy**: self-service data export and account deletion requests with a 14-day cooling-off (web + mobile),
   admin queue, audited; erasure itself is an operator runbook (`docs/PRIVACY.md`).
 - **Achievements** now include debugging cases, guided projects and completed paths (18 total).
+- **Personalized onboarding** (web + mobile, shared copy in `@buildapps/core`): experience, goals, AI tools, intent,
+  pace, project types, platforms and in-app reminder preference. The server builds a plan (path, focus lesson, project-first)
+  and the dashboard adds a daily XP goal, a 7-day summary and a non-punitive comeback welcome.
+- **Placement checks**: experienced learners can pass a server-graded 4-question check to skip a skill. Passing
+  unlocks dependents only (`placed_out`); it grants no XP, level, achievement or streak, so mastery is never falsely
+  awarded. Answers are rate-limited and failures reveal no solutions.
