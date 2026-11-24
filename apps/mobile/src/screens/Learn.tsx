@@ -14,6 +14,7 @@ export function LearnScreen({
 }) {
   const [d, setD] = useState<Dashboard | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [pathId, setPathId] = useState<string | null>(null);
   const load = useCallback(
     () =>
       api
@@ -32,6 +33,11 @@ export function LearnScreen({
       </View>
     );
   if (!d) return <Text style={s.muted}>Loading your path...</Text>;
+  const active =
+    d.path.paths.find((p) => p.id === pathId) ??
+    d.path.paths.find((p) => p.current) ??
+    d.path.paths[0]!;
+  const units = d.path.units.filter((u) => active.unitIds.includes(u.id));
   return (
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
       <View style={{ flexDirection: "row", gap: 10, marginBottom: 8 }}>
@@ -40,7 +46,32 @@ export function LearnScreen({
         <Text style={s.h2}>🏅 Lv {d.level}</Text>
       </View>
       <Bar pct={(d.xpIntoLevel / d.xpForNextLevel) * 100} label="XP to next level" />
-      {d.path.units.map((u) => (
+      <Text style={[s.h2, { marginTop: 16 }]} accessibilityRole="header">
+        Learning paths
+      </Text>
+      {d.path.paths.map((p) => (
+        <Pressable
+          key={p.id}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: p.id === active.id }}
+          accessibilityLabel={`${p.title}. ${p.lessonsDone} of ${p.lessonsTotal} lessons complete${p.current ? ". You are here" : ""}`}
+          onPress={() => setPathId(p.id)}
+          style={{ marginTop: 8, opacity: p.id === active.id ? 1 : 0.7 }}
+        >
+          <Card>
+            <Text style={{ color: c.text, fontWeight: "900" }}>
+              {p.current ? "📍 " : ""}
+              {p.title}
+            </Text>
+            <Text style={s.muted}>{p.blurb}</Text>
+            <Bar
+              pct={p.lessonsTotal ? (p.lessonsDone / p.lessonsTotal) * 100 : 0}
+              label={`${p.title} progress`}
+            />
+          </Card>
+        </Pressable>
+      ))}
+      {units.map((u) => (
         <View key={u.id}>
           <View style={{ backgroundColor: c.violet, borderRadius: 16, padding: 12, marginTop: 22 }}>
             <Text
@@ -65,7 +96,7 @@ export function LearnScreen({
                 <Pressable
                   accessibilityRole="button"
                   accessibilityState={{ disabled: locked }}
-                  accessibilityLabel={`${l.title}. ${locked ? "Locked" : `${l.passed} of ${l.total} done`}`}
+                  accessibilityLabel={`${l.kind === "lesson" ? "" : l.kind === "debug_challenge" ? "Debugging case: " : "Guided project: "}${l.title}. ${locked ? "Locked" : `${l.passed} of ${l.total} done`}`}
                   disabled={locked}
                   onPress={() => onOpenLesson(l.id)}
                   style={({ pressed }) => ({
@@ -81,7 +112,15 @@ export function LearnScreen({
                   })}
                 >
                   <Text style={{ fontSize: 30, color: c.ink }}>
-                    {l.status === "complete" ? "★" : locked ? "🔒" : "▶"}
+                    {l.status === "complete"
+                      ? "★"
+                      : locked
+                        ? "🔒"
+                        : l.kind === "debug_challenge"
+                          ? "🐞"
+                          : l.kind === "guided_project"
+                            ? "🛠"
+                            : "▶"}
                   </Text>
                 </Pressable>
                 <Text

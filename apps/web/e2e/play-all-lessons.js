@@ -161,7 +161,13 @@ async function solve(page, ex, { wrong = false } = {}) {
         await page.screenshot({ path: `${S}/fail.png`, fullPage: true });
         throw new Error("stuck on " + ex.id + " (" + ex.type + ")");
       }
-      await page.locator(".sheet.ok").waitFor();
+      await page
+        .locator(".sheet.ok")
+        .waitFor({ timeout: 8000 })
+        .catch(async () => {
+          await page.screenshot({ path: `${S}/fail.png`, fullPage: true });
+          throw new Error("not graded correct: " + ex.id + " (" + ex.type + ")");
+        });
       if (shots++ === 0 && lesson.id === "anatomy-1")
         await page.screenshot({ path: `${S}/03-correct-feedback.png` });
       await page.getByRole("button", { name: "Continue", exact: true }).click();

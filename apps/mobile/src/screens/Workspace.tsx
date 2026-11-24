@@ -191,7 +191,9 @@ export function WorkspaceScreen({
                 {k.source === "ci_checks"
                   ? "From your repository's own CI"
                   : k.source === "sandbox"
-                    ? "Isolated test execution is not enabled yet"
+                    ? ws.runtime.available
+                      ? `Run in isolated sandbox (${ws.runtime.backend})`
+                      : ws.runtime.reason
                     : "Static check of repository files"}
               </Text>
             </View>

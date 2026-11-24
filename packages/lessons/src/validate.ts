@@ -60,6 +60,8 @@ export function validateExercise(ex: Exercise): string[] {
         if (!ex.words.some((w) => w.id === ex.solution[b]))
           p.push(`${ex.id}: blank ${b} unsolvable`);
       if (ex.words.length <= blanks.length) p.push(`${ex.id}: word bank needs distractors`);
+      if (new Set(ex.words.map((w) => w.label)).size !== ex.words.length)
+        p.push(`${ex.id}: word bank labels must be unique`);
       break;
     }
   }
@@ -94,5 +96,17 @@ export function validateCurriculum(c: Curriculum): string[] {
   const inUnits = c.units.flatMap((u) => u.lessonIds);
   for (const id of inUnits) if (!lessonIds.has(id)) p.push(`unit references unknown lesson ${id}`);
   for (const id of lessonIds) if (!inUnits.includes(id)) p.push(`lesson ${id} is in no unit`);
+  const unitIds = new Set(c.units.map((u) => u.id));
+  const pathed = c.paths.flatMap((x) => x.unitIds);
+  for (const id of pathed) if (!unitIds.has(id)) p.push(`path references unknown unit ${id}`);
+  for (const id of unitIds)
+    if (pathed.filter((x) => x === id).length !== 1)
+      p.push(`unit ${id} must be in exactly one path`);
+  for (const l of c.lessons) {
+    if (l.kind === "debug_challenge" && !l.exercises.some((e) => e.type === "bug_hunt"))
+      p.push(`${l.id}: a debug challenge needs a bug_hunt`);
+    if (l.kind === "guided_project" && l.exercises.length < 5)
+      p.push(`${l.id}: a guided project needs at least 5 steps`);
+  }
   return p;
 }

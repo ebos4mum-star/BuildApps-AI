@@ -1,0 +1,358 @@
+import type { Lesson } from "../types";
+import { bug, mat, scn, seq, wb } from "./dsl";
+
+/**
+ * Guided practical projects: each lesson walks one realistic build from idea to shipped, making the same
+ * decisions an AI-assisted builder faces, in the order they face them.
+ */
+export const guidedProjects: Lesson[] = [
+  {
+    id: "proj-habit",
+    kind: "guided_project",
+    skillId: "specs",
+    title: "Project: Habit Tracker, from idea to spec",
+    summary: "Turn 'an app to track habits' into a buildable, testable plan.",
+    hook: "You will make every decision a builder makes before the first line of code: who it is for, what v1 includes, what data it keeps and what 'done' means.",
+    exercises: [
+      scn(
+        "proj-habit-1",
+        1,
+        "Step 1 - Scope. Which v1 is best for a first release?",
+        "Idea: 'a habit tracker with streaks, friends, a marketplace of challenges and AI coaching'.",
+        [
+          [
+            "core",
+            "Create habits, check them off daily, see a streak. Everything else later.",
+            "Right: one loop users repeat daily. A small v1 ships sooner and teaches you what users actually want.",
+          ],
+          [
+            "all",
+            "Build everything at once so the first release is impressive.",
+            "Large first releases stall and hide which part works.",
+          ],
+          [
+            "social",
+            "Start with the friends marketplace.",
+            "Social features need an audience; build the core value first.",
+          ],
+        ],
+        "core",
+        "Pick the smallest version that delivers the core loop. Everything else becomes a ranked backlog.",
+      ),
+      mat(
+        "proj-habit-2",
+        2,
+        "Step 2 - Data. Which table holds each fact?",
+        [
+          ["habits", "habits"],
+          ["checkins", "check_ins"],
+          ["profiles", "profiles"],
+        ],
+        [
+          ["a", "Habit name and target days per week", "habits"],
+          ["b", "That I did 'Read' on 12 June", "checkins"],
+          ["c", "My display name and time zone", "profiles"],
+          ["d", "Which user owns a habit", "habits"],
+          ["e", "Timestamp of each completion", "checkins"],
+        ],
+        "Store events (check-ins) separately from definitions (habits) so streaks can be computed from history instead of stored as fragile counters.",
+      ),
+      bug(
+        "proj-habit-3",
+        2,
+        "Step 3 - Rules. Tap the policy flaw in the check-ins table.",
+        "policies.sql",
+        [
+          "alter table check_ins enable row level security;",
+          'create policy "read" on check_ins for select to authenticated using (auth.uid() = user_id);',
+          'create policy "write" on check_ins for insert to authenticated with check (true);',
+        ],
+        [2],
+        "The insert policy accepts any row, so a user can log check-ins on other people's habits. It should require auth.uid() = user_id and that the habit belongs to the caller.",
+      ),
+      seq(
+        "proj-habit-4",
+        2,
+        "Step 4 - Build order. Sequence the work for the AI builder.",
+        [
+          ["schema", "Tables + constraints + RLS"],
+          ["tests", "RLS and streak tests"],
+          ["api", "Create habit / check in endpoints"],
+          ["ui", "Today screen with loading, empty and error states"],
+          ["polish", "Reminders and onboarding"],
+        ],
+        "Foundations first, interface next, extras last. Tests before UI means the screen sits on rules you already trust.",
+      ),
+      wb(
+        "proj-habit-5",
+        2,
+        "Step 5 - Write the prompt for the first slice.",
+        [
+          "Create tables habits and check_ins with a ",
+          { blank: "a" },
+          " on (habit_id, date) so a habit is checked in at most once per day, enable ",
+          { blank: "b" },
+          " with owner-only policies, and add tests.",
+        ],
+        [
+          ["unique", "unique constraint"],
+          ["rls", "Row Level Security"],
+          ["index", "colour theme"],
+          ["trigger", "marketing banner"],
+        ],
+        { a: "unique", b: "rls" },
+        "A unique constraint enforces 'once per day' even if two requests race. Naming constraints and security in the prompt prevents the AI from skipping them.",
+      ),
+      scn(
+        "proj-habit-6",
+        3,
+        "Step 6 - Definition of done. Which acceptance check proves the streak feature works?",
+        "Streak = consecutive days with a check-in, ending today or yesterday.",
+        [
+          [
+            "cases",
+            "Tests for: no check-ins, a gap, a time-zone boundary and a check-in today.",
+            "Yes: edge cases (gaps, time zones) are where streaks break, so they are the acceptance criteria.",
+          ],
+          ["demo", "It looked right once in the demo.", "One happy-path demo proves very little."],
+          ["ai", "The AI said it is correct.", "A claim is not evidence; run tests."],
+        ],
+        "cases",
+        "A spec is finished when you can say how each requirement will be proven.",
+      ),
+    ],
+  },
+  {
+    id: "proj-booking",
+    kind: "guided_project",
+    skillId: "backend",
+    title: "Project: Booking app, no double bookings",
+    summary: "Design the data, rules and flows for a small appointment system.",
+    hook: "Two people tap 'Book 3 pm' at the same instant. Who gets it? Real apps decide this in the database, not in hope.",
+    exercises: [
+      scn(
+        "proj-booking-1",
+        2,
+        "Step 1 - Where is double booking prevented?",
+        "The UI hides slots that are already taken.",
+        [
+          [
+            "db",
+            "In the database with a unique constraint on (provider_id, slot_start), plus a friendly error.",
+            "Yes: only the database sees both requests and can reject the second atomically.",
+          ],
+          [
+            "ui",
+            "In the UI: if the slot is hidden it cannot be booked.",
+            "Two users can load the page before either books. UI hiding is a convenience, not a guarantee.",
+          ],
+          [
+            "luck",
+            "Rarely happens, so skip it.",
+            "Rare races happen constantly at scale and ruin trust when they do.",
+          ],
+        ],
+        "db",
+        "Correctness rules belong where every code path must pass: the database.",
+      ),
+      mat(
+        "proj-booking-2",
+        2,
+        "Step 2 - Who may do what?",
+        [
+          ["customer", "Customer"],
+          ["provider", "Provider"],
+          ["admin", "Admin"],
+        ],
+        [
+          ["a", "Book a slot for themselves", "customer"],
+          ["b", "Set their own availability", "provider"],
+          ["c", "Cancel any booking for support reasons (audited)", "admin"],
+          ["d", "See only their own bookings", "customer"],
+          ["e", "See bookings for their own calendar", "provider"],
+        ],
+        "Define roles before writing policies. Each role gets the minimum access it needs, and admin actions are audited.",
+      ),
+      bug(
+        "proj-booking-3",
+        3,
+        "Step 3 - Tap the line with the race condition.",
+        "book.ts",
+        [
+          "const taken = await db.from('bookings').select('id').eq('slot', slot);",
+          "if (taken.length === 0) {",
+          "  await db.from('bookings').insert({ slot, user_id });",
+          "}",
+        ],
+        [0, 1],
+        "Check-then-insert is a race: two requests both see 'free' and both insert. Insert directly and let the unique constraint reject the loser.",
+      ),
+      seq(
+        "proj-booking-4",
+        2,
+        "Step 4 - Order the booking request.",
+        [
+          ["auth", "Verify the session"],
+          ["valid", "Validate slot and provider"],
+          ["insert", "Insert; handle the unique violation as 'slot taken'"],
+          ["notify", "Send confirmation"],
+          ["audit", "Record the event"],
+        ],
+        "Let the insert decide the winner, then react: confirmation for the winner, a friendly retry message for the loser.",
+      ),
+      scn(
+        "proj-booking-5",
+        2,
+        "Step 5 - A user loses the race. What should they see?",
+        "The unique constraint rejected their insert.",
+        [
+          [
+            "friendly",
+            "'That time was just taken - here are nearby slots', with the list refreshed.",
+            "Yes: explains what happened and gives a next step.",
+          ],
+          [
+            "500",
+            "A generic 'Something went wrong'.",
+            "It is not wrong, it is a normal outcome; treat it as one.",
+          ],
+          ["silent", "Pretend it worked.", "Lying about a booking is the worst outcome."],
+        ],
+        "friendly",
+        "Expected conflicts are product states, not errors. Design them.",
+      ),
+      mat(
+        "proj-booking-6",
+        2,
+        "Step 6 - What do you test before launch?",
+        [
+          ["must", "Must test"],
+          ["nice", "Nice to have"],
+        ],
+        [
+          ["a", "Two simultaneous bookings for one slot", "must"],
+          ["b", "A customer cannot read another customer's bookings", "must"],
+          ["c", "Cancellation frees the slot", "must"],
+          ["d", "Button hover animation", "nice"],
+        ],
+        "Test the rules that cost trust or money first: correctness, privacy, and recovery.",
+      ),
+    ],
+  },
+  {
+    id: "proj-rescue",
+    kind: "guided_project",
+    skillId: "shipping",
+    title: "Project: Rescue a half-finished app",
+    summary: "Triage a stalled AI-built app and get it to a shippable state.",
+    hook: "An AI built 80% of the app, then stopped making progress. The last 20% is bugs, security and polish. Here is how to finish it.",
+    exercises: [
+      seq(
+        "proj-rescue-1",
+        2,
+        "Step 1 - Triage. Order what you do on day one.",
+        [
+          ["run", "Run it and write down what fails"],
+          ["scan", "Scan the repo for secrets, missing tests and risky config"],
+          ["rank", "Rank problems by user and security impact"],
+          ["plan", "Turn the top items into small milestones"],
+        ],
+        "Observe before changing anything. A ranked plan prevents the common failure of polishing while a critical bug remains.",
+      ),
+      mat(
+        "proj-rescue-2",
+        2,
+        "Step 2 - Rank these findings.",
+        [
+          ["now", "Fix first"],
+          ["soon", "Next"],
+          ["later", "Later"],
+        ],
+        [
+          ["a", "Service key committed to the repository", "now"],
+          ["b", "No RLS on the users table", "now"],
+          ["c", "Missing README setup steps", "soon"],
+          ["d", "No tests for checkout", "soon"],
+          ["e", "Inconsistent button colors", "later"],
+        ],
+        "Security exposures come first, then correctness and reliability, then documentation, then polish.",
+      ),
+      scn(
+        "proj-rescue-3",
+        3,
+        "Step 3 - The build fails with 14 errors. How do you approach it?",
+        "The AI proposes regenerating the entire app.",
+        [
+          [
+            "first",
+            "Fix the first error, rebuild, and repeat; later errors often disappear.",
+            "Yes: errors cascade. The first one is usually the root.",
+          ],
+          [
+            "regen",
+            "Regenerate everything.",
+            "You would lose working code and reintroduce unknown bugs.",
+          ],
+          [
+            "all",
+            "Fix all 14 at once.",
+            "You cannot tell which change fixed what, and many errors share one cause.",
+          ],
+        ],
+        "first",
+        "Work one root cause at a time, verifying after each change.",
+      ),
+      bug(
+        "proj-rescue-4",
+        2,
+        "Step 4 - Tap the line that makes the 'verified' badge meaningless.",
+        "status.ts",
+        [
+          "export function projectStatus(p) {",
+          "  if (p.userSaysWorks) return 'verified';",
+          "  return p.testsPassing ? 'passing' : 'failing';",
+          "}",
+        ],
+        [1],
+        "Verified must come from evidence the system checked, not a user's say-so. Self-reported status can be displayed, but labeled as reported.",
+      ),
+      wb(
+        "proj-rescue-5",
+        2,
+        "Step 5 - Complete the milestone.",
+        [
+          "Milestone: ",
+          { blank: "a" },
+          " the leaked key, then add ",
+          { blank: "b" },
+          " to CI so it cannot be committed again.",
+        ],
+        [
+          ["rotate", "rotate"],
+          ["scan", "secret scanning"],
+          ["hide", "ignore"],
+          ["colors", "a color palette"],
+        ],
+        { a: "rotate", b: "scan" },
+        "Rotate first because the old value is compromised; automate detection so the fix is permanent.",
+      ),
+      scn(
+        "proj-rescue-6",
+        2,
+        "Step 6 - When is it ready to publish?",
+        "You fixed the top issues.",
+        [
+          [
+            "criteria",
+            "When the checklist is met: tests pass, security items are closed, store requirements are complete and you have evidence for each.",
+            "Yes: readiness is a checklist with evidence, not a feeling.",
+          ],
+          ["deadline", "When the deadline arrives.", "A date is not a quality bar."],
+          ["ai", "When the AI says it is done.", "Claims are not verification."],
+        ],
+        "criteria",
+        "Ship against explicit readiness criteria backed by evidence.",
+      ),
+    ],
+  },
+];

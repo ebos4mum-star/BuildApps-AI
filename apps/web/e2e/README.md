@@ -5,7 +5,7 @@ server rejects forged/locked requests, and exercises the Start/Continue/Rescue j
 
 ```
 cd apps/web
-DEV_MEMORY_BACKEND=1 NEXT_PUBLIC_DEV_BACKEND=1 npx next dev -p 3100 &   # in-memory dev backend
+ATTEMPT_RATE_LIMIT=100000 DEV_MEMORY_BACKEND=1 NEXT_PUBLIC_DEV_BACKEND=1 npx next dev -p 3100 &   # in-memory dev backend (limit raised: the suite plays every lesson)
 npx tsx e2e/dump-solutions.ts /tmp/solutions.json                        # exports solutions for the player
 node e2e/play-all-lessons.js /tmp                                        # needs `playwright` installed
 ```

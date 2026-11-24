@@ -4,6 +4,7 @@ import { z } from "zod";
 import { nowOf, type Deps } from "./deps";
 import { WorkspaceError } from "./errors";
 import { recommendForFindings, type LessonRecommendation } from "./project-learning";
+import { runtimeAvailability, type RuntimeAvailability } from "@buildapps/sandbox";
 import type { FindingRow, ScanRow, ServiceRequestRow, VerificationRunRow } from "./batch2-types";
 
 const SEV = ["critical", "high", "medium", "low", "info"];
@@ -22,6 +23,8 @@ export interface WorkspaceView {
   latestVerification: VerificationRunRow | null;
   readiness: Readiness;
   helpRequest: ServiceRequestRow | null;
+  /** Whether isolated runtime verification may run (fails closed). */
+  runtime: RuntimeAvailability;
   /** Lessons linked to the open findings of this project. */
   recommendedLessons: LessonRecommendation[];
 }
@@ -83,6 +86,11 @@ export async function getWorkspace(
       hasScan: !!latestScan,
       latestVerification: verdict,
     }),
+    runtime: runtimeAvailability(
+      d.sandbox?.backendName ?? null,
+      d.sandbox?.attestation ?? null,
+      nowOf(d),
+    ),
     recommendedLessons: recommendForFindings(findings, learner.passedExerciseIds),
     helpRequest:
       requests

@@ -61,7 +61,18 @@ export interface Lesson {
   summary: string;
   /** Short real-world hook shown before the first exercise. */
   hook: string;
+  /** "debug_challenge" = a broken-app case to diagnose; "guided_project" = build something real step by step. */
+  kind?: LessonKind;
   exercises: Exercise[];
+}
+export type LessonKind = "lesson" | "debug_challenge" | "guided_project";
+export type PathLevel = "beginner" | "intermediate" | "advanced";
+/** A progressive route through units; every learner sees all paths but is guided to the next unfinished one. */
+export interface PathDefinition {
+  id: PathLevel;
+  title: string;
+  blurb: string;
+  unitIds: string[];
 }
 
 export interface Unit {
@@ -74,6 +85,7 @@ export interface Curriculum {
   skills: SkillDefinition[];
   lessons: Lesson[];
   units: Unit[];
+  paths: PathDefinition[];
 }
 
 /** What a client may see: no solutions, no explanations, items deterministically shuffled. */

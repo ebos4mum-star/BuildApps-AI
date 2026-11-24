@@ -72,3 +72,11 @@ M5 web · M6 mobile. Later: Rescue Scanner, Workspace, Verification Lab, Human R
   admin operations). The mobile app is type-checked and bundled for Android/iOS, and shares one API client with
   the web (a static parity test fails if either UI stops using an API operation). Native iOS/Android
   _runtime_ behaviour has not been verified in this environment.
+
+## Status after the experience pass
+
+- **Curriculum**: 63 lessons / 212 exercises in 3 progressive paths (beginner, intermediate, advanced) across 29 units
+  and 22 skills, including 5 interactive debugging cases and 3 guided projects (habit tracker, booking app, rescue a
+  stalled app). Lessons carry a `kind`; the web and mobile maps show the path, kind icons and per-path progress.
+- **Verification Lab isolation**: see `docs/VERIFICATION_SANDBOX.md`. Runtime verification remains unavailable
+  (fails closed) until a real backend passes the probe suite.

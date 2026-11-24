@@ -5,10 +5,17 @@ import { api, type Dashboard } from "@/lib/api-types";
 import { Mascot } from "@/components/Mascot";
 
 const ICON = { complete: "★", available: "▶", in_progress: "▶", locked: "🔒" } as const;
+const KIND_ICON = { lesson: "▶", debug_challenge: "🐞", guided_project: "🛠" } as const;
+const KIND_LABEL = {
+  lesson: "Lesson",
+  debug_challenge: "Debugging case",
+  guided_project: "Guided project",
+} as const;
 
 export default function Learn() {
   const [d, setD] = useState<Dashboard | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [pathId, setPathId] = useState<string | null>(null);
   useEffect(() => {
     api
       .dashboard()
@@ -28,6 +35,11 @@ export default function Learn() {
       </p>
     );
   const skillState = new Map(d.path.skills.map((s) => [s.skillId, s]));
+  const activePath =
+    d.path.paths.find((p) => p.id === pathId) ??
+    d.path.paths.find((p) => p.current) ??
+    d.path.paths[0]!;
+  const shownUnits = d.path.units.filter((u) => activePath.unitIds.includes(u.id));
   return (
     <>
       <div className="stats" aria-label="Your stats">
@@ -83,7 +95,49 @@ export default function Learn() {
         ))}
       </div>
 
-      {d.path.units.map((u) => (
+      <h2>Learning paths</h2>
+      <div className="skills" role="tablist" aria-label="Learning paths">
+        {d.path.paths.map((p) => {
+          const pct = p.lessonsTotal ? (p.lessonsDone / p.lessonsTotal) * 100 : 0;
+          const active = p.id === activePath.id;
+          return (
+            <button
+              key={p.id}
+              role="tab"
+              aria-selected={active}
+              className="card path-card"
+              style={{
+                textAlign: "left",
+                cursor: "pointer",
+                outline: active ? "2px solid var(--brand, #6c5ce7)" : undefined,
+              }}
+              onClick={() => setPathId(p.id)}
+            >
+              <span className={`badge ${p.current ? "warn" : ""}`}>
+                {p.current ? "You are here" : p.lessonsDone === p.lessonsTotal ? "Complete" : p.id}
+              </span>{" "}
+              <strong>{p.title}</strong>
+              <div className="muted">{p.blurb}</div>
+              <div
+                className="bar"
+                style={{ marginTop: ".4rem" }}
+                role="progressbar"
+                aria-label={`${p.title} progress`}
+                aria-valuemin={0}
+                aria-valuemax={p.lessonsTotal}
+                aria-valuenow={p.lessonsDone}
+              >
+                <i style={{ width: `${pct}%` }} />
+              </div>
+              <small className="muted">
+                {p.lessonsDone}/{p.lessonsTotal} lessons
+              </small>
+            </button>
+          );
+        })}
+      </div>
+
+      {shownUnits.map((u) => (
         <section key={u.id} aria-labelledby={u.id}>
           <div className="unit" id={u.id}>
             {u.title}
@@ -95,7 +149,7 @@ export default function Learn() {
               const style = { transform: `translateX(${[0, 46, 0, -46][i % 4]}px)` };
               const body = (
                 <>
-                  {ICON[l.status]}
+                  {l.status === "complete" ? ICON.complete : KIND_ICON[l.kind]}
                   <span className="sr-only"> {l.status.replace("_", " ")}</span>
                 </>
               );
@@ -116,7 +170,7 @@ export default function Learn() {
                       href={`/learn/${l.id}`}
                       className={cls}
                       style={style}
-                      aria-label={`${l.title} - ${l.passed} of ${l.total} done`}
+                      aria-label={`${KIND_LABEL[l.kind]}: ${l.title} - ${l.passed} of ${l.total} done`}
                     >
                       {body}
                     </Link>
@@ -126,7 +180,7 @@ export default function Learn() {
                     <small>
                       {l.status === "locked"
                         ? `Unlock by reaching Beginner in earlier skills`
-                        : `${l.passed}/${l.total} exercises`}
+                        : `${l.kind === "lesson" ? "" : KIND_LABEL[l.kind] + " · "}${l.passed}/${l.total} exercises`}
                     </small>
                   </div>
                 </div>

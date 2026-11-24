@@ -17,7 +17,8 @@
     "@buildapps/publishing": "workspace:*",
     "@buildapps/scanner": "workspace:*",
     "@supabase/supabase-js": "^2.45.0",
-    "zod": "^3.23.0"
+    "zod": "^3.23.0",
+    "@buildapps/sandbox": "workspace:*"
   },
   "devDependencies": {
     "@buildapps/config": "workspace:*",

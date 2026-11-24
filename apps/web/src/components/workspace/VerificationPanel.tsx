@@ -30,6 +30,16 @@ export function VerificationPanel({ ws }: { ws: WorkspaceView }) {
           ))}
         </ul>
       )}
+      <p className="muted" style={{ fontSize: ".85rem" }}>
+        Isolated runtime checks:{" "}
+        {ws.runtime.available ? (
+          <span className="badge ok">Available ({ws.runtime.backend})</span>
+        ) : (
+          <>
+            <span className="badge">Unavailable</span> {ws.runtime.reason}
+          </>
+        )}
+      </p>
       {!run ? (
         <p className="muted">
           No verification run yet. Run verification to check CI results and static checks on the

@@ -9,6 +9,11 @@ import { testingVerification } from "./testing-verification";
 import { shipping } from "./shipping";
 import { aiBuilders, frontend, prompting, specs } from "./foundations";
 import { backend, databases, flows, uxDesign } from "./design-backend";
+import { rowSecurity } from "./data-access";
+import { quality } from "./quality-delivery";
+import { advancedOps, advancedSecurity } from "./advanced";
+import { debugCases } from "./challenges";
+import { guidedProjects } from "./projects";
 import { apiIntegrations, auth, debugging, maintenance, security } from "./security-ops";
 
 export const skills: SkillDefinition[] = [
@@ -107,6 +112,19 @@ export const skills: SkillDefinition[] = [
     name: "App maintenance",
     prerequisites: [{ skillId: "shipping", minLevel: "beginner" }],
   },
+  {
+    id: "quality",
+    name: "Quality: accessibility & speed",
+    prerequisites: [{ skillId: "frontend", minLevel: "beginner" }],
+  },
+  {
+    id: "cicd",
+    name: "Automation & releases",
+    prerequisites: [
+      { skillId: "git-basics", minLevel: "beginner" },
+      { skillId: "testing-verification", minLevel: "beginner" },
+    ],
+  },
 ];
 
 export const curriculum: Curriculum = {
@@ -132,6 +150,12 @@ export const curriculum: Curriculum = {
     ...security,
     ...debugging,
     ...maintenance,
+    ...rowSecurity,
+    ...quality,
+    ...advancedSecurity,
+    ...advancedOps,
+    ...debugCases,
+    ...guidedProjects,
   ],
   units: [
     { id: "unit-1", title: "Know your app", lessonIds: ["anatomy-1", "anatomy-2"] },
@@ -160,5 +184,73 @@ export const curriculum: Curriculum = {
       lessonIds: ["integr-1", "sec-1", "sec-2", "debug-1", "debug-2"],
     },
     { id: "unit-10", title: "Keep it healthy", lessonIds: ["maint-1"] },
+    { id: "unit-p1", title: "Guided project: Habit Tracker", lessonIds: ["proj-habit"] },
+    {
+      id: "unit-11",
+      title: "Data you can trust",
+      lessonIds: ["rls-1", "mig-1", "db-3", "back-3"],
+    },
+    { id: "unit-12", title: "Identity and secrets", lessonIds: ["auth-3", "env-1"] },
+    { id: "unit-13", title: "Reliable integrations", lessonIds: ["api-2", "api-3"] },
+    {
+      id: "unit-14",
+      title: "Quality you can feel",
+      lessonIds: ["state-1", "a11y-1", "a11y-2", "perf-1"],
+    },
+    {
+      id: "unit-15",
+      title: "Automate and verify",
+      lessonIds: ["test-2", "test-3", "ci-1", "ci-2"],
+    },
+    { id: "unit-16", title: "Direct the AI like a reviewer", lessonIds: ["prompt-3", "prompt-4"] },
+    { id: "unit-p2", title: "Guided project: Booking app", lessonIds: ["proj-booking"] },
+    { id: "unit-17", title: "Defend it", lessonIds: ["sec-3", "sec-4"] },
+    { id: "unit-18", title: "Operate it", lessonIds: ["maint-2", "maint-3"] },
+    {
+      id: "unit-19",
+      title: "Debugging cases",
+      lessonIds: [
+        "case-login-loop",
+        "case-vanished-data",
+        "case-works-locally",
+        "case-slow-page",
+        "case-leaked-key",
+      ],
+    },
+    { id: "unit-p3", title: "Guided project: Rescue an app", lessonIds: ["proj-rescue"] },
+  ],
+  paths: [
+    {
+      id: "beginner",
+      title: "Beginner: build with AI",
+      blurb:
+        "How apps and AI builders work, turning ideas into specs, and your first guided project.",
+      unitIds: ["unit-1", "unit-2", "unit-3", "unit-4", "unit-5", "unit-6", "unit-p1"],
+    },
+    {
+      id: "intermediate",
+      title: "Intermediate: build it properly",
+      blurb: "Front end, data, access control, integrations, quality and automation.",
+      unitIds: [
+        "unit-7",
+        "unit-8",
+        "unit-9",
+        "unit-10",
+        "unit-11",
+        "unit-12",
+        "unit-13",
+        "unit-14",
+        "unit-15",
+        "unit-16",
+        "unit-p2",
+      ],
+    },
+    {
+      id: "advanced",
+      title: "Advanced: secure, operate and rescue",
+      blurb:
+        "Threat modelling, incident response, real debugging cases and rescuing a stalled app.",
+      unitIds: ["unit-17", "unit-18", "unit-19", "unit-p3"],
+    },
   ],
 };

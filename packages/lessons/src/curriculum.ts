@@ -1,6 +1,6 @@
 import { computeSkillTree, type SkillEvidence, type SkillState } from "@buildapps/core";
 import { curriculum } from "./content";
-import type { Exercise, Lesson } from "./types";
+import type { Exercise, Lesson, LessonKind, PathLevel } from "./types";
 
 const lessonById = new Map(curriculum.lessons.map((l) => [l.id, l]));
 const exerciseIndex = new Map<string, { lesson: Lesson; exercise: Exercise }>();
@@ -32,6 +32,7 @@ export interface PathLesson {
   title: string;
   summary: string;
   skillId: string;
+  kind: LessonKind;
   status: LessonStatus;
   passed: number;
   total: number;
@@ -43,7 +44,18 @@ export interface PathUnit {
   title: string;
   lessons: PathLesson[];
 }
+export interface PathSummary {
+  id: PathLevel;
+  title: string;
+  blurb: string;
+  unitIds: string[];
+  lessonsDone: number;
+  lessonsTotal: number;
+  /** True for the first path that still has unfinished lessons: where the learner is guided next. */
+  current: boolean;
+}
 export interface LearningPath {
+  paths: PathSummary[];
   units: PathUnit[];
   skills: SkillState[];
   nextLessonId: string | null;
@@ -74,13 +86,23 @@ export function buildLearningPath(passedExerciseIds: Iterable<string>): Learning
         title: l.title,
         summary: l.summary,
         skillId: l.skillId,
+        kind: l.kind ?? "lesson",
         status,
         passed: done,
         total: l.exercises.length,
       };
     }),
   }));
-  return { units, skills: [...tree.values()], nextLessonId };
+  const byUnit = new Map(units.map((u) => [u.id, u]));
+  let currentSet = false;
+  const paths = curriculum.paths.map<PathSummary>((p) => {
+    const ls = p.unitIds.flatMap((id) => byUnit.get(id)?.lessons ?? []);
+    const lessonsDone = ls.filter((l) => l.status === "complete").length;
+    const current = !currentSet && lessonsDone < ls.length;
+    if (current) currentSet = true;
+    return { ...p, lessonsDone, lessonsTotal: ls.length, current };
+  });
+  return { paths, units, skills: [...tree.values()], nextLessonId };
 }
 
 /** Server-side gate: may this user attempt this exercise yet? */

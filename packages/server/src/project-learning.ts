@@ -3,13 +3,13 @@ import type { FindingRow } from "./batch2-types";
 
 /** Which lessons help with which kind of scanner finding. Ids are validated by tests. */
 export const CATEGORY_LESSONS: Record<string, string[]> = {
-  security: ["sec-1", "auth-1", "db-2"],
+  security: ["sec-1", "env-1", "rls-1", "auth-1", "sec-3", "db-2"],
   structure: ["anatomy-1", "git-1"],
   docs: ["specs-1", "prompt-1"],
-  build: ["errors-1", "debug-1"],
-  completeness: ["specs-1", "front-2"],
-  dependencies: ["maint-1", "api-1"],
-  tests: ["test-1", "debug-1"],
+  build: ["errors-1", "debug-1", "case-works-locally"],
+  completeness: ["specs-1", "front-2", "a11y-2", "proj-rescue"],
+  dependencies: ["maint-1", "maint-2", "api-1"],
+  tests: ["test-1", "test-2", "test-3", "ci-1"],
 };
 
 export interface LessonRecommendation {
