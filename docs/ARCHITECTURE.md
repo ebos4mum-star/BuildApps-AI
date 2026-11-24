@@ -55,7 +55,7 @@ M5 web · M6 mobile. Later: Rescue Scanner, Workspace, Verification Lab, Human R
 
 ## Status after the completion pass (admin, curriculum, gamification)
 
-- **Curriculum**: 19 skills, 31 lessons across 10 units (AI builders, specs, prompting, frontend, UX, flows,
+- **Curriculum**: 20 skills, 33 lessons (106 exercises) across 10 units (AI builders, specs, prompting, frontend, UX, flows,
   backend, databases/Supabase, auth, integrations, security/privacy, debugging, testing, shipping, maintenance).
   Content is validated by tests (solvable, explained, mixed exercise types) and played end to end in the browser.
 - **Gamification** (all server-computed): XP, non-punitive streaks, skill levels, 13 achievements,
