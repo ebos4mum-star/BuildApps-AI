@@ -153,7 +153,10 @@ export default function AdminPage() {
           {requests.map((r) => (
             <div className="card" key={r.id}>
               <p>
-                <span className="badge warn">{r.status}</span>{" "}
+                <span className="badge">
+                  {r.kind === "publishing" ? "publishing assistance" : "rescue"}
+                </span>{" "}
+                <span className="badge warn">{r.status.replace("_", " ")}</span>{" "}
                 {r.assignedExpertId && (
                   <span className="muted">expert: {name(r.assignedExpertId)}</span>
                 )}
